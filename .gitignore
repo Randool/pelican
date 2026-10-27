@@ -1,0 +1,14 @@
+# 编译产物：跑 ./app/build.sh 就会重新生成
+app/PelicanFloat.app/
+build/
+
+# macOS
+.DS_Store
+
+# 本机额外要盯的 agent 目录清单：每行一个路径，不进仓库
+app/agents.txt
+app/PelicanFloat.app/Contents/Resources/agents.txt
+
+# 自检 / 调试留下的临时文件
+*.log
+*.tmp

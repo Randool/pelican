@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>海边骑车的鹈鹕</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  /* rounded card, inner stroke; the outer shadow is the window's job */
+  #app {
+    position: fixed; inset: 0; border-radius: 18px; overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16);
+  }
+  svg#scene { width: 100%; height: 100%; display: block; }
+
+  body { -webkit-user-select: none; user-select: none; cursor: default; }
+
+  /* resize hint, bottom right, shows on hover */
+  #grip {
+    position: fixed; right: 5px; bottom: 5px; width: 15px; height: 15px;
+    opacity: 0; transition: opacity .18s; pointer-events: none;
+    background:
+      linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, .8) 46% 54%, transparent 54%),
+      linear-gradient(135deg, transparent 0 66%, rgba(255, 255, 255, .55) 66% 74%, transparent 74%);
+  }
+  body:hover #grip { opacity: 1; }
+  @keyframes twinkle { from { opacity: .22; } to { opacity: .95; } }
+
+  /* light should add to the scene, not fog what it covers */
+  #beam, #lamp { mix-blend-mode: screen; }
+</style>
+</head>
+<body>
+<div id="app">
+  <svg id="scene" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice"
+       role="img" aria-label="一只鹈鹕在海边骑自行车">
+    <defs>
+      <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#4fbde4"/>
+        <stop offset="0.5" stop-color="#a5def0"/>
+        <stop offset="1" stop-color="#ffe6c2"/>
+      </linearGradient>
+      <radialGradient id="sunGlowG">
+        <stop offset="0" stop-color="#fff8d8" stop-opacity=".95"/>
+        <stop offset="0.4" stop-color="#ffe8a6" stop-opacity=".5"/>
+        <stop offset="1" stop-color="#ffe8a6" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="seaG" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#2b8ba8"/>
+        <stop offset="0.5" stop-color="#3fa8bf"/>
+        <stop offset="1" stop-color="#8ed6d8"/>
+      </linearGradient>
+      <linearGradient id="wetG" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#bfe3dd"/>
+        <stop offset="1" stop-color="#e8d9b0"/>
+      </linearGradient>
+      <linearGradient id="sandG" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f7e8c8"/>
+        <stop offset="0.45" stop-color="#f2dfb4"/>
+        <stop offset="1" stop-color="#e3c894"/>
+      </linearGradient>
+      <radialGradient id="moonGlowG">
+        <stop offset="0" stop-color="#dfe9ff" stop-opacity=".55"/>
+        <stop offset="0.45" stop-color="#a9c2ee" stop-opacity=".22"/>
+        <stop offset="1" stop-color="#a9c2ee" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="lampBeamG" gradientUnits="userSpaceOnUse"
+                      x1="758" y1="292" x2="1090" y2="540">
+        <stop offset="0" stop-color="#ffe7b6" stop-opacity=".8"/>
+        <stop offset=".5" stop-color="#ffcf7d" stop-opacity=".3"/>
+        <stop offset="1" stop-color="#ffcf7d" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="softEdge" x="-25%" y="-25%" width="150%" height="150%">
+        <feGaussianBlur stdDeviation="5"/>
+      </filter>
+      <radialGradient id="lampG">
+        <stop offset="0" stop-color="#ffe3a6" stop-opacity=".55"/>
+        <stop offset="0.55" stop-color="#ffd98a" stop-opacity=".2"/>
+        <stop offset="1" stop-color="#ffd98a" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="feather" x1="0.15" y1="0" x2="0.85" y2="1">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.6" stop-color="#f6f0e3"/>
+        <stop offset="1" stop-color="#ded3bd"/>
+      </linearGradient>
+      <linearGradient id="beak" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f9bb4a"/>
+        <stop offset="1" stop-color="#e8871a"/>
+      </linearGradient>
+      <linearGradient id="pouch" x1="0.1" y1="0" x2="0.55" y2="1">
+        <stop offset="0" stop-color="#fbc970"/>
+        <stop offset="1" stop-color="#ed9526"/>
+      </linearGradient>
+
+      <!-- wheel: centre (0,0); valve and reflector make the spin readable -->
+      <g id="wheelArt">
+        <circle r="95" fill="none" stroke="#2b2f36" stroke-width="14"/>
+        <circle r="86" fill="none" stroke="#eef3f5" stroke-width="7"/>
+        <circle r="78" fill="none" stroke="#cfd8dd" stroke-width="2"/>
+        <g stroke="#c3ccd2" stroke-width="2" stroke-linecap="round">
+          <path d="M0 -78 V 78"/>
+          <path d="M0 -78 V 78" transform="rotate(30)"/>
+          <path d="M0 -78 V 78" transform="rotate(60)"/>
+          <path d="M0 -78 V 78" transform="rotate(90)"/>
+          <path d="M0 -78 V 78" transform="rotate(120)"/>
+          <path d="M0 -78 V 78" transform="rotate(150)"/>
+        </g>
+        <rect x="-3.5" y="-94" width="7" height="11" rx="2" fill="#e0563f"/>
+        <circle cx="0" cy="-71" r="4.5" fill="#ffd166"/>
+        <circle r="11" fill="#f2f6f8" stroke="#8fa0a8" stroke-width="3"/>
+      </g>
+
+      <!-- moto fat tyre, five spokes -->
+      <g id="motoWheel">
+        <circle r="95" fill="none" stroke="#22262b" stroke-width="26"/>
+        <circle r="80" fill="none" stroke="#39424a" stroke-width="7"/>
+        <g fill="#8d99a1">
+          <path d="M-8 -74 L 8 -74 L 4 0 L -4 0 Z"/>
+          <path d="M-8 -74 L 8 -74 L 4 0 L -4 0 Z" transform="rotate(72)"/>
+          <path d="M-8 -74 L 8 -74 L 4 0 L -4 0 Z" transform="rotate(144)"/>
+          <path d="M-8 -74 L 8 -74 L 4 0 L -4 0 Z" transform="rotate(216)"/>
+          <path d="M-8 -74 L 8 -74 L 4 0 L -4 0 Z" transform="rotate(288)"/>
+        </g>
+        <circle r="17" fill="#c9d2d8" stroke="#5c6b72" stroke-width="4"/>
+        <rect x="-4" y="-92" width="8" height="12" rx="2" fill="#e0563f"/>
+      </g>
+    </defs>
+
+    <!-- sky and sun -->
+    <rect width="1200" height="700" fill="#8ed6d8"/>
+    <rect width="1200" height="330" fill="url(#skyG)"/>
+    <circle id="sunHalo" cx="930" cy="132" r="180" fill="url(#sunGlowG)"/>
+    <circle id="sunCore" cx="930" cy="132" r="46" fill="#fff4c4"/>
+    <g id="clouds"></g>
+    <g id="gulls"></g>
+
+    <!-- sea -->
+    <rect y="320" width="1200" height="130" fill="url(#seaG)"/>
+    <rect y="319" width="1200" height="3" fill="#d8f2f2" opacity=".7"/>
+    <g id="waves"></g>
+    <g id="glitter"></g>
+    <g id="island"></g>
+    <g id="boat"></g>
+
+    <!-- wet sand, foam, dry sand -->
+    <rect y="450" width="1200" height="32" fill="url(#wetG)"/>
+    <g id="foam"></g>
+    <rect y="482" width="1200" height="218" fill="url(#sandG)"/>
+    <g id="sandDecor"></g>
+
+    <!-- time of day: night is a veil; stars and lamp sit above it -->
+    <rect id="veil" width="1200" height="700" fill="#040b18" opacity="0"/>
+    <g id="stars" opacity="0"></g>
+    <path id="beam" fill="url(#lampBeamG)" opacity="0" filter="url(#softEdge)"
+          d="M758 292 L 1120 556 L 900 556 Z"/>
+    <ellipse id="lamp" cx="1010" cy="552" rx="170" ry="28" fill="url(#lampG)" opacity="0"/>
+
+    <!-- shadow under the bike -->
+    <ellipse id="shadow" cx="600" cy="566" rx="270" ry="17" fill="#b9905a" opacity=".3"/>
+
+    <g id="dust"></g>
+
+    <!-- ===== pelican and bikes (800x600 coords, scaled into place) ===== -->
+    <g id="rider" transform="translate(117,-40) scale(1.15)">
+      <!-- wheels: bike and e-bike share these, the moto swaps fat tyres -->
+      <g id="wheelsBike">
+        <g transform="translate(250,420)"><g id="spinRear"><use href="#wheelArt"/></g></g>
+        <g transform="translate(585,420)"><g id="spinFront"><use href="#wheelArt"/></g></g>
+      </g>
+      <g id="wheelsMoto" style="display:none">
+        <g transform="translate(250,420)"><g id="spinRearM"><use href="#motoWheel"/></g></g>
+        <g transform="translate(585,420)"><g id="spinFrontM"><use href="#motoWheel"/></g></g>
+      </g>
+
+      <!-- far leg behind the frame: thick thigh, thin shin, knee dot -->
+      <path id="thighFar" fill="none" stroke="#c4681f" stroke-width="10"
+            stroke-linecap="round" stroke-linejoin="round"/>
+
+
+      <g id="bike">
+      <!-- frame -->
+      <g fill="none" stroke="#2b6d7f" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M405 416 L 545 352"/>
+        <path d="M405 416 L 320 330"/>
+        <path d="M320 330 L 551 307"/>
+        <path d="M545 352 L 556 301"/>
+        <path d="M405 416 L 250 420"/>
+        <path d="M320 330 L 250 420"/>
+      </g>
+      <path d="M548 340 C 566 370 578 396 586 418" fill="none" stroke="#22596a" stroke-width="10" stroke-linecap="round"/>
+
+      <circle cx="250" cy="420" r="11" fill="#b9c4cb" stroke="#5c6b72" stroke-width="3"/>
+      <circle cx="405" cy="416" r="22" fill="#dfe7ea" stroke="#5c6b72" stroke-width="4"/>
+      <circle cx="405" cy="416" r="7" fill="#5c6b72"/>
+      <!-- drivetrain: dashed chain is the links, offset follows the crank -->
+      <path id="chainBike" class="chain" fill="none" stroke="#55636a" stroke-width="3.6"
+            stroke-dasharray="5 4" stroke-linecap="round"/>
+
+      <!-- saddle, bars, bell -->
+      <path d="M270 330 C 278 316 302 309 328 309 C 344 309 352 316 344 322 C 330 331 298 338 278 336 C 268 335 266 334 270 330 Z" fill="#5b4a3f"/>
+      <g fill="none" stroke="#2b6d7f" stroke-width="9" stroke-linecap="round">
+        <path d="M556 301 L 566 281"/>
+        <path d="M566 281 C 556 268 536 264 516 268"/>
+      </g>
+      <circle cx="558" cy="292" r="9" fill="#f0c14b" stroke="#b98f22" stroke-width="2.5"/>
+      <path d="M528 266 C 519 262 508 261 502 265 C 497 269 500 277 507 279 C 516 282 527 281 532 276 Z" fill="#5b4a3f"/>
+
+      </g><!-- /#bike -->
+
+      <!-- ===== e-bike: same frame, plus battery, hub motor, headlamp ===== -->
+      <g id="ebike" style="display:none">
+        <path d="M188 372 C 208 344 252 338 280 350" fill="none" stroke="#2f7a63" stroke-width="10" stroke-linecap="round"/>
+        <g fill="none" stroke="#2f7a63" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M405 416 L 545 352"/>
+          <path d="M405 416 L 320 330"/>
+          <path d="M320 330 L 551 307"/>
+          <path d="M545 352 L 556 301"/>
+          <path d="M405 416 L 250 420"/>
+          <path d="M320 330 L 250 420"/>
+        </g>
+        <path d="M548 340 C 566 370 578 396 586 418" fill="none" stroke="#1f5c4a" stroke-width="12" stroke-linecap="round"/>
+        <!-- battery slung along the down tube -->
+        <path d="M422 400 L 522 368" stroke="#3b4950" stroke-width="25" stroke-linecap="round"/>
+        <path d="M422 400 L 522 368" stroke="#55656d" stroke-width="17" stroke-linecap="round"/>
+        <path d="M442 392 L 502 373" stroke="#7ee0a8" stroke-width="3" stroke-linecap="round" opacity=".9"/>
+        <!-- hub motor -->
+        <circle cx="250" cy="420" r="30" fill="none" stroke="#4b5a62" stroke-width="9"/>
+        <circle cx="250" cy="420" r="30" fill="none" stroke="#9fb0b8" stroke-width="2.5" stroke-dasharray="5 8"/>
+        <circle cx="250" cy="420" r="11" fill="#b9c4cb" stroke="#5c6b72" stroke-width="3"/>
+        <circle cx="405" cy="416" r="22" fill="#dfe7ea" stroke="#5c6b72" stroke-width="4"/>
+        <circle cx="405" cy="416" r="6" fill="#5c6b72"/>
+        <path id="chainEbike" class="chain" fill="none" stroke="#55636a" stroke-width="3.6"
+              stroke-dasharray="5 4" stroke-linecap="round"/>
+        <path d="M270 330 C 278 316 302 309 328 309 C 344 309 352 316 344 322 C 330 331 298 338 278 336 C 268 335 266 334 270 330 Z" fill="#3a2f2a"/>
+        <g fill="none" stroke="#2f7a63" stroke-width="10" stroke-linecap="round">
+          <path d="M556 301 L 566 281"/>
+          <path d="M566 281 C 556 268 536 264 516 268"/>
+        </g>
+        <circle cx="561" cy="286" r="11" fill="#fff3c4" stroke="#b98f22" stroke-width="3"/>
+        <path d="M536 268 C 526 263 514 262 508 266 C 503 270 506 278 513 280 C 522 283 533 282 538 277 Z" fill="#3a2f2a"/>
+      </g>
+
+      <!-- ===== moto: tank, engine, exhaust, headlamp ===== -->
+      <g id="moto" style="display:none">
+        <path d="M153 364 A 112 112 0 0 1 306 323" fill="none" stroke="#2f3438" stroke-width="12" stroke-linecap="round"/>
+        <g fill="none" stroke="#c0453a" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M405 402 L 322 322"/>
+          <path d="M322 322 L 540 302"/>
+          <path d="M405 402 L 526 330"/>
+          <path d="M250 420 L 400 406"/>
+          <path d="M322 322 L 258 416"/>
+        </g>
+        <!-- engine -->
+        <rect x="348" y="364" width="104" height="72" rx="16" fill="#717f88" stroke="#454f56" stroke-width="4"/>
+        <g stroke="#454f56" stroke-width="3" opacity=".75">
+          <path d="M358 378 H 442"/><path d="M358 392 H 442"/>
+          <path d="M358 406 H 442"/><path d="M358 420 H 442"/>
+        </g>
+        <circle cx="400" cy="400" r="15" fill="#454f56"/>
+        <!-- exhaust -->
+        <path d="M432 428 C 398 456 332 460 288 452" fill="none" stroke="#b9c4cb" stroke-width="13" stroke-linecap="round"/>
+        <rect x="238" y="440" width="74" height="22" rx="11" fill="#cdd6db" stroke="#8fa0a8" stroke-width="3"/>
+        <!-- tank between chest and bars; the body hides its rear half -->
+        <path d="M372 336 C 380 306 424 292 470 300 C 502 306 520 320 516 338 C 490 352 404 358 372 336 Z"
+              fill="#d9553f" stroke="#a8382a" stroke-width="3"/>
+        <path d="M392 314 C 418 304 452 302 486 308" fill="none" stroke="#f0917e" stroke-width="5" stroke-linecap="round" opacity=".85"/>
+        <!-- seat -->
+        <path d="M238 334 C 244 316 288 306 330 312 C 344 315 346 323 334 327 C 298 340 252 342 238 334 Z" fill="#2f3438"/>
+        <!-- fork and bars reuse the bike's contact points, wings stay put -->
+        <path d="M548 338 C 566 368 578 394 586 418" fill="none" stroke="#717f88" stroke-width="13" stroke-linecap="round"/>
+        <g fill="none" stroke="#2f3438" stroke-width="10" stroke-linecap="round">
+          <path d="M556 301 L 566 281"/>
+          <path d="M566 281 C 556 268 536 264 516 268"/>
+        </g>
+        <!-- headlamp and small screen -->
+        <circle cx="562" cy="288" r="15" fill="#fff3c4" stroke="#b98f22" stroke-width="3"/>
+        <path d="M548 266 C 560 248 582 248 592 262" fill="#cfe9f2" opacity=".4" stroke="#9fb0b8" stroke-width="2"/>
+        <!-- front mudguard hugging the tyre -->
+        <path d="M529 323 A 112 112 0 0 1 641 323" fill="none" stroke="#c0453a" stroke-width="11" stroke-linecap="round"/>
+        <!-- pegs the pelican stands on -->
+        <rect x="402" y="447" width="34" height="9" rx="4" fill="#3c484e"/>
+        <rect x="364" y="441" width="30" height="8" rx="3.5" fill="#2c363b"/>
+      </g>
+
+      <!-- crank and pedals: bike and e-bike only, hidden on the moto -->
+      <g id="crankG">
+        <g stroke="#4a585f" stroke-width="7" stroke-linecap="round">
+          <path d="M405 416 L 430 448"/>
+          <path d="M405 416 L 380 384"/>
+        </g>
+      </g>
+      <!-- pedals stay out of the crank group: absolute position each frame -->
+      <g id="pedalA" transform="translate(429.63 447.52)"><rect x="-20" y="-4" width="40" height="8" rx="3.5" fill="#3c484e"/></g>
+      <g id="pedalB" transform="translate(380.37 384.48)"><rect x="-20" y="-4" width="40" height="8" rx="3.5" fill="#3c484e"/></g>
+
+
+
+      <!-- the pelican -->
+      <g id="bird">
+        <g id="tailG">
+          <g fill="#ded2ba">
+            <path d="M226 292 C 206 289 186 294 174 301 C 190 305 204 310 216 317 Z"/>
+            <path d="M230 305 C 210 307 192 314 181 322 C 197 325 211 327 223 331 Z"/>
+            <path d="M234 318 C 214 322 201 328 194 335 C 207 336 220 334 230 331 Z"/>
+          </g>
+        </g>
+
+        <!-- neck first, the body covers the seam at the shoulder -->
+        <path d="M316 296 C 318 246 340 199 378 183 C 392 177 408 182 413 194
+                 C 418 206 410 216 398 222 C 379 233 364 254 358 296 Z"
+              fill="url(#feather)" stroke="#dbd1bc" stroke-width="2"/>
+
+        <!-- head, beak, pouch, eye; the group turns as one -->
+        <g id="headG">
+          <!-- pouch first: its tail hides under the chin -->
+          <path d="M430 176 C 434 206 460 226 490 225
+                   C 518 224 540 208 549 191
+                   C 520 188 480 182 452 180 C 442 178 432 177 430 176 Z"
+                fill="url(#pouch)" stroke="#d9861f" stroke-width="2"/>
+          <path d="M378 202 C 372 176 388 153 414 150 C 439 147 458 163 458 183 C 458 204 440 217 418 216 C 397 215 382 212 378 202 Z"
+                fill="url(#feather)" stroke="#dbd1bc" stroke-width="2"/>
+          <!-- upper beak, slightly arched, hooked tip -->
+          <path d="M441 155 C 476 148 518 158 548 172 C 556 175 558 183 553 188
+                   C 549 191 545 190 538 189 C 505 186 474 182 454 180 C 443 178 437 166 441 155 Z"
+                fill="url(#beak)" stroke="#cf7712" stroke-width="2"/>
+          <path d="M454 180 C 486 183 516 187 549 189" fill="none" stroke="#c97714" stroke-width="1.8" opacity=".75"/>
+          <path d="M452 166 C 486 164 518 170 544 178" fill="none" stroke="#cf7712" stroke-width="1.6" opacity=".45"/>
+          <ellipse cx="466" cy="173" rx="4" ry="2.2" fill="#c97714" opacity=".45"/>
+          <g id="eyeG">
+            <circle cx="424" cy="171" r="7" fill="#2b2f36"/>
+            <circle id="eyeHi" cx="426.5" cy="168.5" r="2.4" fill="#fff" opacity=".9"/>
+          </g>
+          <path d="M413 157 C 421 153 432 154 438 159" fill="none" stroke="#c9bda4" stroke-width="2.4" stroke-linecap="round"/>
+        </g>
+
+        <!-- body -->
+        <path d="M210 302 C 198 264 226 232 268 224 C 310 216 350 228 368 252 C 388 280 382 318 356 334 C 328 350 264 354 236 340 C 218 330 212 316 210 302 Z"
+              fill="url(#feather)" stroke="#dbd1bc" stroke-width="2"/>
+        <path d="M240 334 C 272 350 320 346 346 330 C 362 320 374 306 378 292 C 376 318 358 338 336 347 C 306 359 262 352 240 334 Z"
+              fill="#e7ddc7" opacity=".65"/>
+
+        <!-- wing folded at the side -->
+        <path d="M334 250 C 294 248 254 260 226 286
+                 C 214 296 212 308 222 313
+                 C 240 322 266 316 286 304
+                 C 246 322 232 330 224 330
+                 C 260 340 300 326 320 306
+                 C 336 288 340 264 334 250 Z" fill="#f4e9d1" stroke="#c9b994" stroke-width="2"/>
+        <g stroke="#c2b28c" stroke-width="2" fill="none" stroke-linecap="round">
+          <path d="M238 292 C 256 288 274 280 290 270"/>
+          <path d="M228 302 C 248 298 268 290 284 280"/>
+          <path d="M236 316 C 256 312 276 304 292 294"/>
+        </g>
+
+        <!-- wing reaching for the bars -->
+        <path d="M338 250 C 372 244 408 250 442 262 C 468 271 492 276 508 274
+                 C 519 273 523 283 511 285 C 486 291 452 284 424 274
+                 C 396 265 368 262 340 266 Z" fill="#faf3e3" stroke="#d3c5a6" stroke-width="2"/>
+        <path d="M494 261 C 506 258 518 262 523 270 C 526 278 517 285 507 283 C 497 280 489 273 487 266 Z"
+              fill="#efe6d3" stroke="#d8cdb6" stroke-width="2"/>
+        <g stroke="#d8cdb6" stroke-width="2" fill="none" stroke-linecap="round">
+          <path d="M352 257 C 382 255 410 261 434 271"/>
+          <path d="M462 266 C 476 270 488 274 498 278"/>
+        </g>
+      </g>
+
+      <!-- contact shadow for the propped foot: it sells the ground contact -->
+      <ellipse id="footShadow" cx="372" cy="512" rx="30" ry="6" fill="#8a6a44" opacity="0"/>
+
+      <!-- near leg and webbed foot, follows the pedal each frame -->
+      <path id="thighNear" fill="none" stroke="#f2a256" stroke-width="12"
+            stroke-linecap="round" stroke-linejoin="round"/>
+
+      <g id="footNear">
+        <path d="M2 -6 C 8 -13 22 -13 32 -8 C 38 -4 39 5 33 8 C 23 12 9 9 3 2 C -1 -1 -1 -4 2 -6 Z" fill="#ef9440"/>
+        <g stroke="#d97f2f" stroke-width="2" fill="none" stroke-linecap="round">
+          <path d="M13 -3 C 13 2 14 5 16 7"/>
+          <path d="M23 -3 C 23 2 25 6 28 8"/>
+          <path d="M33 -1 C 34 3 36 5 38 5"/>
+        </g>
+      </g>
+      <g id="footFar">
+        <path d="M2 -5 C 8 -10 20 -9 27 -5 C 31 -2 30 4 24 6 C 15 8 5 5 2 1 C -1 -2 -1 -3 2 -5 Z" fill="#c96f22"/>
+      </g>
+    </g>
+
+    <!-- grass, fastest layer, drawn last -->
+    <g id="grass"></g>
+  </svg>
+
+  <div id="grip"></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const svg = document.getElementById('scene');
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+
+  // ---------- fixed seed: the sea looks the same after a reload ----------
+  let seed = 20261027;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const pick = a => a[(rnd() * a.length) | 0];
+
+  // ---------- scrolling bands: each draws 1200, plus one copy ----------
+  const TW = 1200;   // viewport width, one loop period
+  const bands = [];                    // { node, factor }
+  // Build once, then copy: two different random builds make the strip jump at the seam.
+  const band = (id, factor, build) => {
+    const node = $(id);
+    // own layer: scrolling should move pixels, not repaint a 1000-element SVG
+    node.style.willChange = 'transform';
+    // own layer: scrolling should move pixels, not repaint a 1000-element SVG
+    const first = el('g', {}, node);
+    build(first);
+    const copy = first.cloneNode(true);
+    copy.setAttribute('transform', `translate(${TW} 0)`);
+    node.appendChild(copy);
+    bands.push({ node, factor });
+  };
+
+  // clouds
+  band('clouds', 0.045, g => {
+    for (let i = 0; i < 5; i++) {
+      const x = rnd() * TW, y = 42 + rnd() * 140, s = .55 + rnd() * .7, o = .5 + rnd() * .4;
+      const c = el('g', { transform: `translate(${x} ${y}) scale(${s})`, opacity: o }, g);
+      el('ellipse', { cx: 0, cy: 0, rx: 62, ry: 20, fill: '#fff' }, c);
+      el('ellipse', { cx: -28, cy: -6, rx: 34, ry: 24, fill: '#fff' }, c);
+      el('ellipse', { cx: 22, cy: -10, rx: 40, ry: 28, fill: '#fff' }, c);
+      el('ellipse', { cx: 6, cy: 8, rx: 46, ry: 14, fill: '#f2fbff', opacity: .8 }, c);
+    }
+  });
+
+  // sea ripples
+  band('waves', 0.16, g => {
+    for (let i = 0; i < 46; i++) {
+      const y = 326 + rnd() * 112;
+      const depth = (y - 320) / 130;   // closer water reads stronger
+      el('line', {
+        x1: rnd() * TW, y1: y, x2: 0, y2: 0, stroke: '#eaf9f9',
+        'stroke-width': 2 + depth * 2.4, 'stroke-linecap': 'round',
+        opacity: (.12 + depth * .3).toFixed(3),
+        transform: `translate(0 0)`
+      }, g).setAttribute('x2', (+g.lastChild.getAttribute('x1') + 16 + rnd() * 54).toFixed(1));
+      g.lastChild.setAttribute('y2', y);
+    }
+  });
+
+  // sun glitter on the water
+  band('glitter', 0.1, g => {
+    for (let i = 0; i < 26; i++) {
+      const y = 326 + rnd() * 112, x = 846 + rnd() * 170;
+      el('line', {
+        x1: x.toFixed(1), y1: y.toFixed(1), x2: (x + 8 + rnd() * 18).toFixed(1), y2: y.toFixed(1),
+        stroke: '#fff6cf', 'stroke-width': 2 + rnd() * 1.6, 'stroke-linecap': 'round',
+        opacity: (.25 + rnd() * .5).toFixed(2)
+      }, g);
+    }
+  });
+
+  // distant island and palms, barely moves
+  band('island', 0.035, g => {
+    const x = 120 + rnd() * 90, y = 320;
+    const isl = el('g', { transform: `translate(${x} ${y})`, opacity: .5 }, g);
+    el('path', { d: 'M0 0 C 30 -22 96 -26 150 0 Z', fill: '#2f7f8c' }, isl);
+    el('path', { d: 'M52 -14 C 54 -34 62 -46 70 -50', stroke: '#2f7f8c', 'stroke-width': 3, fill: 'none' }, isl);
+    el('path', { d: 'M70 -50 C 60 -56 52 -54 46 -50 M70 -50 C 78 -57 86 -56 90 -50 M70 -50 C 71 -60 66 -66 60 -68', stroke: '#2f7f8c', 'stroke-width': 3, fill: 'none' }, isl);
+    el('path', { d: 'M96 -10 C 98 -24 104 -32 110 -34', stroke: '#2f7f8c', 'stroke-width': 2.5, fill: 'none' }, isl);
+    el('path', { d: 'M110 -34 C 102 -38 96 -36 92 -33 M110 -34 C 117 -39 123 -38 126 -33', stroke: '#2f7f8c', 'stroke-width': 2.5, fill: 'none' }, isl);
+  });
+
+  // foam, pushed in and out along the shore
+  band('foam', 0.5, g => {
+    const scallop = (y, amp, step, op, sw, col) => {
+      let d = `M-40 ${y}`;
+      for (let x = -40; x < TW + 40; x += step) {
+        d += ` q ${step / 2} ${-amp} ${step} 0`;
+      }
+      el('path', { d, fill: 'none', stroke: col, 'stroke-width': sw, 'stroke-linecap': 'round', opacity: op }, g);
+    };
+    scallop(454, 5, 62, .55, 4, '#ffffff');
+    scallop(462, 4, 46, .35, 3, '#ffffff');
+    scallop(469, 3, 74, .22, 3, '#eafaff');
+  });
+
+  // shells, starfish, pebbles on the sand
+  band('sandDecor', 0.95, g => {
+    for (let i = 0; i < 26; i++) {
+      const x = rnd() * TW, y = 500 + rnd() * 180, s = .7 + rnd() * .9;
+      const kind = rnd();
+      const o = .55 + rnd() * .35;
+      if (kind < .3) {   // starfish
+        const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)}) rotate(${(rnd() * 60 - 30).toFixed(0)})`, opacity: o }, g);
+        el('path', { d: 'M0 -11 L3 -3 L11 -3 L5 2 L7 10 L0 5 L-7 10 L-5 2 L-11 -3 L-3 -3 Z', fill: '#e8886a' }, t);
+      } else if (kind < .62) {   // shell
+        const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)}) rotate(${(rnd() * 40 - 20).toFixed(0)})`, opacity: o }, g);
+        el('path', { d: 'M-9 4 C -9 -6 9 -6 9 4 C 5 8 -5 8 -9 4 Z', fill: '#fdf3e2', stroke: '#d8bf9a', 'stroke-width': 1.2 }, t);
+        el('path', { d: 'M-4 4 L -2 -2 M0 5 L 0 -3 M4 4 L 2 -2', stroke: '#d8bf9a', 'stroke-width': 1.1, fill: 'none' }, t);
+      } else {   // pebble
+        el('ellipse', { cx: x.toFixed(1), cy: y.toFixed(1), rx: (4 + rnd() * 5).toFixed(1), ry: (2.5 + rnd() * 3).toFixed(1), fill: pick(['#cbb18a', '#d6bd97', '#bfa47c']), opacity: .8 }, g);
+      }
+    }
+  });
+
+  // foreground grass
+  band('grass', 1.35, g => {
+    for (let i = 0; i < 8; i++) {
+      const x = rnd() * TW, y = 660 + rnd() * 40, s = .55 + rnd() * .45;
+      const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)})`, opacity: .85 }, g);
+      for (let b = 0; b < 5; b++) {
+        const lean = -18 + b * 9 + rnd() * 6;
+        el('path', {
+          d: `M0 0 C ${lean * .4} -14 ${lean * .8} -28 ${lean} -42`,
+          stroke: pick(['#8fae52', '#a3bd63', '#7d9c46']), 'stroke-width': 3.2, 'stroke-linecap': 'round', fill: 'none'
+        }, t);
+      }
+    }
+  });
+
+  // ---------- a few gulls in the air ----------
+  const gulls = [];
+  for (let i = 0; i < 3; i++) {
+    const g = el('g', {}, $('gulls'));
+    el('path', {
+      d: 'M-14 0 C -8 -8 -3 -8 0 0 C 3 -8 8 -8 14 0',
+      fill: 'none', stroke: '#3c5b63', 'stroke-width': 3, 'stroke-linecap': 'round', opacity: .75
+    }, g);
+    gulls.push({ node: g, x: 200 + i * 330, y: 150 + i * 42, sp: 9 + i * 5, ph: i * 2.1, s: .8 + i * .25 });
+  }
+
+  // ---------- boat ----------
+  const boat = $('boat');
+  const boatG = el('g', { transform: 'translate(1035 382)' }, boat);
+  el('path', { d: 'M-26 0 L26 0 L18 12 L-18 12 Z', fill: '#3b4a52' }, boatG);
+  el('path', { d: 'M0 -34 L0 -4 L22 -4 Z', fill: '#fdfaf1' }, boatG);
+  el('path', { d: 'M-2 -30 L-2 -4 L-20 -4 Z', fill: '#e8e0cd' }, boatG);
+
+  // ---------- stars: night only, twinkle handled by CSS ----------
+  const starsG = $('stars');
+  const stars = [];   // { node, twinkle }: the animation is only attached at night
+  for (let i = 0; i < 46; i++) {
+    const s = el('circle', {
+      cx: (rnd() * TW).toFixed(1), cy: (18 + rnd() * 250).toFixed(1),
+      r: (.8 + rnd() * 1.5).toFixed(2), fill: '#eaf2ff'
+    }, starsG);
+    stars.push({ node: s,
+      twinkle: `twinkle ${(2.6 + rnd() * 3).toFixed(1)}s ease-in-out ${(-rnd() * 4).toFixed(1)}s infinite alternate` });
+  }
+
+  // ---------- state ----------
+  const S = {
+    rate: 0, mode: 'idle',
+    v: 0, target: 0,   // ground speed, scene px per second; target is where it heads
+    wheel: 0, crank: 0, chain: 0,
+    t: 0, blinkT: 0, blinkNext: 2.6, headA: 0,
+    footT: 0, parkT: 0   // 0 = foot on the pedal, 1 = propped on the sand
+  };
+  const SPEED_MAX = 620, WHEEL_R = 95, SCALE = 1.15, CRANK_R = 40, CRANK_PHASE = 52 * Math.PI / 180;
+  // gear ratio is the radius ratio: one crank turn, rear turns R/r times
+  const CHAINRING = { x: 405, y: 416, r: 22 }, SPROCKET = { x: 250, y: 420, r: 11 };
+  const GEAR = SPROCKET.r / CHAINRING.r;
+
+  // chain path: two outer tangents plus an arc around each sprocket
+  function chainD(A, B) {
+    const d = Math.hypot(B.x - A.x, B.y - A.y);
+    const ux = (B.x - A.x) / d, uy = (B.y - A.y) / d;
+    const a = (A.r - B.r) / d, b = Math.sqrt(1 - a * a);
+    const nUp = { x: a * ux - b * uy, y: a * uy + b * ux };
+    const nDn = { x: a * ux + b * uy, y: a * uy - b * ux };
+    const at = (C, n) => `${(C.x + C.r * n.x).toFixed(2)} ${(C.y + C.r * n.y).toFixed(2)}`;
+    return `M ${at(A, nUp)} L ${at(B, nUp)} A ${B.r} ${B.r} 0 1 0 ${at(B, nDn)}` +
+           ` L ${at(A, nDn)} A ${A.r} ${A.r} 0 1 0 ${at(A, nUp)} Z`;
+  }
+  const HIP_NEAR = [332, 346], HIP_FAR = [314, 346];
+  // ankle spot for the propped foot: sole on the sand (wheel centre 420 + r 95)
+  const FOOT_GROUND = [352, 504];
+
+  // debug params via hash: #rate=1500&t=3 fast-forwards and freezes
+  const params = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const FPS_CAP = Number(params.get('fps')) || 0;   // force fps, 0 = adapt
+
+  // ---------- time of day: day / afternoon / night, from the clock ----------
+  // swap the light, not the scenery: sky, sea, sand each get a set, and night
+  // is a veil, so clouds, waves and shells never need per-element tinting.
+  const PHASES = {
+    day: {
+      sky: ['#4fbde4', '#a5def0', '#ffe6c2'],
+      sea: ['#2b8ba8', '#3fa8bf', '#8ed6d8'],
+      wet: ['#bfe3dd', '#e8d9b0'],
+      sand: ['#f7e8c8', '#f2dfb4', '#e3c894'],
+      veil: ['#040b18', 0], glitter: 1, clouds: 1, foam: 1,
+      stars: 0, lamp: 0, beam: 0, shadow: .3,
+      sun: { y: 132, r: 46, core: '#fff4c4', halo: 'url(#sunGlowG)', haloR: 180 }
+    },
+    afternoon: {
+      sky: ['#3d76bd', '#f0ad7d', '#ffb478'],
+      sea: ['#2a6a8c', '#3d87a0', '#8fbdbd'],
+      wet: ['#cdbca0', '#e8c390'],
+      sand: ['#f3d3a0', '#e9bd82', '#d3a067'],
+      veil: ['#ff8a3d', .16], glitter: 1, clouds: 1, foam: 1,
+      stars: 0, lamp: 0, beam: 0, shadow: .34,
+      sun: { y: 246, r: 54, core: '#ffedaf', halo: 'url(#sunGlowG)', haloR: 220 }
+    },
+    night: {
+      sky: ['#050b1c', '#0b1f3a', '#16304f'],
+      sea: ['#08192a', '#0e2b40', '#184a60'],
+      wet: ['#123244', '#1a3644'],
+      sand: ['#22303c', '#27323d', '#2e3540'],
+      veil: ['#040b18', .34], glitter: .3, clouds: .38, foam: .4,
+      stars: 1, lamp: 1, beam: 1, shadow: .16,
+      sun: { y: 104, r: 32, core: '#eef3ff', halo: 'url(#moonGlowG)', haloR: 130 }
+    }
+  };
+
+  function setStops(id, colors) {
+    $(id).querySelectorAll('stop').forEach((s, i) => {
+      if (colors[i]) s.setAttribute('stop-color', colors[i]);
+    });
+  }
+
+  let phaseNow = '';
+  function applyPhase(name) {
+    const p = PHASES[name];
+    if (!p || name === phaseNow) return;
+    setStops('skyG', p.sky);
+    setStops('seaG', p.sea);
+    setStops('wetG', p.wet);
+    setStops('sandG', p.sand);
+    const veil = $('veil');
+    veil.setAttribute('fill', p.veil[0]);
+    veil.setAttribute('opacity', p.veil[1]);
+    const core = $('sunCore'), halo = $('sunHalo');
+    core.setAttribute('cy', p.sun.y); core.setAttribute('r', p.sun.r); core.setAttribute('fill', p.sun.core);
+    halo.setAttribute('cy', p.sun.y); halo.setAttribute('r', p.sun.haloR); halo.setAttribute('fill', p.sun.halo);
+    $('glitter').style.opacity = p.glitter;
+    $('clouds').style.opacity = p.clouds;
+    $('foam').style.opacity = p.foam;
+    starsG.style.opacity = p.stars;
+    // attach the twinkle only while it shows: invisible animations still run
+    for (const s of stars) s.node.style.animation = p.stars ? s.twinkle : '';
+    $('lamp').style.opacity = p.lamp;
+    $('beam').style.opacity = p.beam;
+    $('shadow').setAttribute('opacity', p.shadow);
+    phaseNow = name;
+  }
+
+  // day 6-15, afternoon 16-18, night 19-5
+  const phaseForHour = h => (h >= 19 || h < 6) ? 'night' : (h >= 16 ? 'afternoon' : 'day');
+  const forced = params.get('time');   // debug and screenshots: #time=night
+  applyPhase(PHASES[forced] ? forced : phaseForHour(new Date().getHours()));
+  if (!forced) {
+    // once a minute is enough; the switch lands within a minute of the hour
+    setInterval(() => applyPhase(phaseForHour(new Date().getHours())), 60000);
+  }
+
+  function setTokenRate(r) {
+    S.rate = Math.max(0, Number(r) || 0);
+    S.mode = S.rate > 0.5 ? 'working' : 'idle';
+    if (S.mode === 'idle') { S.blinkNext = Math.min(S.blinkNext, S.t + .4); }
+  }
+
+  // ---------- per frame ----------
+  const spinRear = $('spinRear'), spinFront = $('spinFront'), crankG = $('crankG');
+  const pedalA = $('pedalA'), pedalB = $('pedalB');
+  const spinRearM = $('spinRearM'), spinFrontM = $('spinFrontM');
+  const bikeG = $('bike'), ebikeG = $('ebike'), motoG = $('moto');
+  const wheelsBike = $('wheelsBike'), wheelsMoto = $('wheelsMoto');
+  const chainBike = $('chainBike'), chainEbike = $('chainEbike');
+  chainBike.setAttribute('d', chainD(CHAINRING, SPROCKET));
+  chainEbike.setAttribute('d', chainD(CHAINRING, SPROCKET));
+
+  // ---------- vehicles: faster means a better ride ----------
+  // all three share contact points, so the pelican's pose never changes
+  const PEG_NEAR = [418, 452], PEG_FAR = [380, 446];
+  const V_EB = 300, V_MOTO = 470, V_HYST = 26;   // speed gates + hysteresis
+  let vehicle = 'bike';
+
+  // Up-shifts look at the speed we are heading for, down-shifts at the speed we
+  // still have: a burst goes straight to the moto instead of flashing the
+  // e-bike for the half second it takes to pass through its band.
+  const STAGES = ['bike', 'ebike', 'moto'], GATES = [V_EB, V_MOTO];
+  function stageOf(s) {
+    let i = 0;
+    while (i < 2 && s > GATES[i]) i++;
+    return i;
+  }
+  function pickVehicle(v, cur) {
+    let i = STAGES.indexOf(cur);
+    const want = stageOf(S.target);
+    if (want > i && v > GATES[want - 1] + V_HYST) i = want;
+    while (i > 0 && v < GATES[i - 1] - V_HYST) i--;
+    return STAGES[i];
+  }
+
+  function setVehicle(next) {
+    if (next === vehicle) return vehicle;
+    vehicle = next;
+    const isMoto = next === 'moto';
+    bikeG.style.display = next === 'bike' ? '' : 'none';
+    ebikeG.style.display = next === 'ebike' ? '' : 'none';
+    motoG.style.display = isMoto ? '' : 'none';
+    wheelsBike.style.display = isMoto ? 'none' : '';
+    wheelsMoto.style.display = isMoto ? '' : 'none';
+    crankG.style.display = isMoto ? 'none' : '';
+    pedalA.style.display = isMoto ? 'none' : '';
+    pedalB.style.display = isMoto ? 'none' : '';
+    for (let i = 0; i < 8; i++) puff(410, 556, { ttl: .8 });   // dust on swap
+    return vehicle;
+  }
+  const thighNear = $('thighNear'), thighFar = $('thighFar');
+  const footNear = $('footNear'), footFar = $('footFar'), footShadow = $('footShadow');
+  const bird = $('bird'), headG = $('headG'), eyeG = $('eyeG'), eyeHi = $('eyeHi'), tailG = $('tailG');
+  const dust = $('dust');
+
+  let travelled = 0;
+
+  // Only write attributes that changed: each write re-rasterises the area.
+  // Keyed by node: gulls and the boat have no id, so ids would collide.
+  const _prev = new WeakMap();
+  // one dust/smoke particle: vehicle swap, rear wheel, exhaust all use it
+  function puff(x, y, o = {}) {
+    const op = o.op ?? .75;
+    const p = el('circle', {
+      cx: x.toFixed(1), cy: (y + (Math.random() * 8 - 4)).toFixed(1),
+      r: (o.r0 ?? (2 + Math.random() * 3)).toFixed(1),
+      fill: o.fill || '#e7d3a8', opacity: op.toFixed(2)
+    }, dust);
+    p._life = 0;
+    p._ttl = o.ttl ?? .7;
+    p._op0 = op;
+    p._grow = o.grow ?? 5;
+    p._vx = o.vx ?? -(40 + Math.random() * 70);
+    p._vy = o.vy ?? -(10 + Math.random() * 26);
+    return p;
+  }
+
+  function put(node, attr, val) {
+    let seen = _prev.get(node);
+    if (!seen) _prev.set(node, seen = new Map());
+    if (seen.get(attr) === val) return false;
+    seen.set(attr, val);
+    node.setAttribute(attr, val);
+    return true;
+  }
+
+  function update(dt) {
+    S.t += dt;
+
+    // speed: log mapping, so hundreds and thousands of tok/s both read right
+    const f = Math.min(1, Math.log1p(S.rate) / Math.log1p(3000));
+    const target = S.mode === 'working' ? 40 + f * (SPEED_MAX - 40) : 0;
+    S.target = target;   // pickVehicle needs where the speed is heading
+    // ease in fast (2.4); stopping is a coast: 0.34 decay, about 6s of roll
+    const k = target > S.v ? 2.4 : (S.mode === 'working' ? 1.2 : 0.34);
+    S.v += (target - S.v) * Math.min(1, dt * k);
+    if (S.v < 1.5) S.v = 0;
+
+    const localV = S.v / SCALE;   // to the bike's local coordinates
+    const dWheel = (localV / WHEEL_R) * dt;   // no skid: v = omega * r
+    S.wheel += dWheel;
+    // pedalling follows token rate, not speed: at zero the feet come off, the
+    // crank settles level while the wheels keep rolling. That is coasting.
+    const pedaling = S.mode === 'working' && S.v > 4;
+    const crankWas = S.crank;
+    if (pedaling) {
+      // chain is rigid: crank speed comes from the rear wheel through the gear
+      S.crank += dWheel * GEAR;
+    } else if (S.v > 4) {
+      // freewheel: feet stop, chain stops
+      const level = Math.round(S.crank / Math.PI) * Math.PI;
+      S.crank += (level - S.crank) * Math.min(1, dt * 6);
+    }
+    S.chain += (S.crank - crankWas) * CHAINRING.r;   // chain speed = omega * r
+
+    travelled += S.v * dt;
+
+    const moving = S.v > 4;
+    const cDeg = S.crank * 180 / Math.PI;
+    const onMoto = setVehicle(pickVehicle(S.v, vehicle)) === 'moto';
+    const p1 = onMoto ? PEG_NEAR
+      : [405 + CRANK_R * Math.cos(S.crank + CRANK_PHASE), 416 + CRANK_R * Math.sin(S.crank + CRANK_PHASE)];
+    const p2 = onMoto ? PEG_FAR
+      : [405 - CRANK_R * Math.cos(S.crank + CRANK_PHASE), 416 - CRANK_R * Math.sin(S.crank + CRANK_PHASE)];
+
+    // Parked: wheels, crank, pedals, bands are static, positions already set.
+    if (moving) {
+      const wDeg = (S.wheel * 180 / Math.PI).toFixed(2);
+      put(spinRear, 'transform', `rotate(${wDeg})`);
+      put(spinFront, 'transform', `rotate(${wDeg})`);
+      put(spinRearM, 'transform', `rotate(${wDeg})`);
+      put(spinFrontM, 'transform', `rotate(${wDeg})`);
+      const chainOff = S.chain.toFixed(1);
+      put(chainBike, 'stroke-dashoffset', chainOff);
+      put(chainEbike, 'stroke-dashoffset', chainOff);
+      if (!onMoto) {
+        put(crankG, 'transform', `rotate(${cDeg.toFixed(2)} 405 416)`);
+        // pedals orbit the crank but never flip: the foot stays flat
+        put(pedalA, 'transform', `translate(${p1[0].toFixed(2)} ${p1[1].toFixed(2)})`);
+        put(pedalB, 'transform', `translate(${p2[0].toFixed(2)} ${p2[1].toFixed(2)})`);
+      }
+    }
+
+    // Parked long enough, the near foot props on the sand: a bird this top-heavy
+    // would fall over otherwise. Short pauses keep both feet on the pedals.
+    S.parkT = (!moving && !pedaling) ? S.parkT + dt : 0;
+    S.footT += ((S.parkT > .7 ? 1 : 0) - S.footT) * Math.min(1, dt * 5);
+    const plant = S.footT * S.footT * (3 - 2 * S.footT);   // smoothstep, no snap
+
+    // body: bobs with the stroke, sits while coasting, breathes at rest
+    const bob = (pedaling ? Math.sin(S.crank * 2) * 2.2
+      : moving ? Math.sin(S.t * 2.2) * .5
+      : Math.sin(S.t * 1.1) * 1.3) + 4 * plant;
+    const lean = pedaling ? 1.6 + Math.sin(S.crank * 2) * .5 : (moving ? .8 : -1.8 - 2.4 * plant);
+    put(bird, 'transform', `translate(0 ${bob.toFixed(2)}) rotate(${lean.toFixed(2)} 290 300)`);
+
+    // legs: hip follows the body, ankle rides the pedal, one quadratic each
+    const hipN = [HIP_NEAR[0], HIP_NEAR[1] + bob], hipF = [HIP_FAR[0], HIP_FAR[1] + bob];
+    const ankN = [p1[0] + (FOOT_GROUND[0] - p1[0]) * plant,
+                  p1[1] - 9 + (FOOT_GROUND[1] - (p1[1] - 9)) * plant];
+    const ankF = [p2[0], p2[1] - 9];
+    const curve = (H, A, bow) => {
+      const dx = A[0] - H[0], dy = A[1] - H[1], d = Math.hypot(dx, dy) || 1;
+      const cx = (H[0] + A[0]) / 2 + (dy / d) * bow;
+      const cy = (H[1] + A[1]) / 2 - (dx / d) * bow;
+      return `M${H[0]} ${H[1].toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${A[0].toFixed(1)} ${A[1].toFixed(1)}`;
+    };
+    put(thighNear, 'd', curve(hipN, ankN, 20 + 14 * plant));
+    put(thighFar, 'd', curve(hipF, ankF, 16));
+
+    put(footNear, 'transform', `translate(${ankN[0].toFixed(1)} ${ankN[1].toFixed(1)}) scale(${(.82 + .1 * plant).toFixed(3)}) rotate(${(-7 * plant).toFixed(1)})`);
+    put(footShadow, 'opacity', (plant * .18).toFixed(2));
+    put(footFar, 'transform', `translate(${ankF[0].toFixed(1)} ${ankF[1].toFixed(1)}) scale(.78)`);
+
+    // head: eyes ahead while working, looks at the sea once stopped
+    // still rolling: keep watching the road until it slows
+    const headTarget = (S.mode === 'working' || S.v > 120)
+      ? -1 + Math.sin(S.crank * 2) * 1.4
+      : -17 + Math.sin(S.t * .7) * 2.4;
+    S.headA += (headTarget - S.headA) * Math.min(1, dt * 2.5);
+    put(headG, 'transform', `rotate(${S.headA.toFixed(2)} 400 208) translate(418 186) scale(1.12) translate(-418 -186)`);
+
+    // tail flicks when stopped
+    put(tailG, 'transform', moving ? '' : `rotate(${(Math.sin(S.t * 1.3) * 2.5).toFixed(2)} 234 315)`);
+
+    // blink
+    S.blinkT += dt;
+    let eyeScale = 1;
+    if (S.blinkT > S.blinkNext) {
+      const p = (S.blinkT - S.blinkNext) / .14;
+      if (p >= 1) { S.blinkT = 0; S.blinkNext = 2.2 + Math.random() * 4.5; }
+      else eyeScale = 1 - Math.sin(Math.PI * p) * .9;
+    }
+    put(eyeG, 'transform', `translate(424 171) scale(1 ${eyeScale.toFixed(3)}) translate(-424 -171)`);
+    put(eyeHi, 'opacity', eyeScale > .55 ? '.9' : '0');
+
+    // bands scroll with speed, static when parked
+    if (moving) {
+      for (const b of bands) {
+        const o = (travelled * b.factor) % TW;
+        put(b.node, 'transform', `translate(${(-o).toFixed(2)} 0)`);
+      }
+    }
+
+    // gulls, boat, dust
+    for (const g of gulls) {
+      g.x -= g.sp * dt * (1 + S.v / 260);
+      if (g.x < -80) g.x = 1280;
+      const flap = Math.sin(S.t * 6 + g.ph);
+      put(g.node, 'transform', `translate(${g.x.toFixed(1)} ${(g.y + Math.sin(S.t * 1.6 + g.ph) * 4).toFixed(1)}) scale(${g.s} ${(g.s * (.55 + .45 * Math.abs(flap))).toFixed(2)})`);
+    }
+    put(boatG, 'transform', `translate(1035 ${(382 + Math.sin(S.t * .9) * 2.5).toFixed(1)}) rotate(${(Math.sin(S.t * .9) * .8).toFixed(2)})`);
+
+    // sand kicked up behind the rear wheel
+    if (S.v > 130 && Math.random() < dt * (S.v / 240) * 4) puff(404.5, 552);
+    // exhaust smoke on the moto
+    if (onMoto && S.v > 300 && Math.random() < dt * 9) {
+      puff(392, 478, { fill: '#c8ced2', op: .5, ttl: .9, r0: 4, grow: 9,
+                       vx: -(60 + Math.random() * 50), vy: -(6 + Math.random() * 20) });
+    }
+    for (let i = dust.children.length - 1; i >= 0; i--) {
+      const p = dust.children[i];
+      p._life += dt;
+      if (p._life > p._ttl) { p.remove(); continue; }
+      p.setAttribute('cx', (+p.getAttribute('cx') + p._vx * dt).toFixed(1));
+      p.setAttribute('cy', (+p.getAttribute('cy') + p._vy * dt).toFixed(1));
+      p.setAttribute('r', (3 + p._life * p._grow).toFixed(1));
+      p.setAttribute('opacity', (p._op0 * (1 - p._life / p._ttl)).toFixed(3));
+    }
+  }
+
+  let last = performance.now();
+  let lastDraw = last;
+  let frozen = false;
+  // frame rate by state: 30fps working, 15 idle, the cheap cut
+  const FPS_BUSY = 30, FPS_IDLE = 15;
+  // Skip by frame count, not by elapsed time: 60Hz frames land right on the 33.3ms
+  // boundary, so a time threshold flips between 2 and 3 frames and judders.
+  let skip = 0;
+  // --probe reads these: how many frames we drew in the last second, worst gap
+  const drawTimes = [];
+  const frameStats = () => {
+    const t = performance.now();
+    while (drawTimes.length && t - drawTimes[0] > 1000) drawTimes.shift();
+    let gap = 0;
+    for (let i = 1; i < drawTimes.length; i++) gap = Math.max(gap, drawTimes[i] - drawTimes[i - 1]);
+    return { fps: drawTimes.length, gap: +gap.toFixed(1) };
+  };
+  function frame(now) {
+    const idle = S.mode !== 'working' && S.v < 1.5;
+    const cap = FPS_CAP || (idle ? FPS_IDLE : FPS_BUSY);
+    const every = FPS_CAP ? 1 : Math.max(1, Math.round(60 / cap));
+    // Count frames, but never hoard: a late rAF still draws right away.
+    const due = FPS_CAP ? now - lastDraw >= 1000 / cap
+                        : ++skip >= every || now - lastDraw >= 1000 / cap;
+    if (!frozen && !due) {
+      requestAnimationFrame(frame);
+      return;
+    }
+    skip = 0;
+    const dt = Math.min(.1, (now - lastDraw) / 1000);
+    lastDraw = now; last = now;
+    if (!frozen) update(dt);
+    drawTimes.push(now);
+    requestAnimationFrame(frame);
+  }
+  // fast-forward N seconds without wall time; debug and screenshots
+  function step(sec) {
+    const n = Math.round(sec * 60);
+    for (let i = 0; i < n; i++) update(1 / 60);
+  }
+
+  // ---------- app API: the shell pushes a token rate once a second ----------
+  window.pelican = {
+    setTokenRate: setTokenRate,   // tokens per second; 0 = parked
+    // the demo recorder reads speed from here
+    getState: () => ({ mode: S.mode, rate: S.rate, speed: S.v, wheel: S.wheel, crank: S.crank, chain: S.chain,
+                       foot: +S.footT.toFixed(2), ...frameStats() }),
+    step,   // fast-forward, for screenshots and the demo
+    freeze: (on = true) => { frozen = !!on; }
+  };
+
+  setTokenRate(Number(params.get('rate')) || 0);
+  if (params.get('t')) {
+    step(Number(params.get('t')) || 0);
+    // coast check: zero the rate, then fast-forward off seconds
+    if (params.get('off')) {
+      setTokenRate(0);
+      step(Number(params.get('off')) || 0);
+    }
+    if (params.get('freeze') !== '0') frozen = true;
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
