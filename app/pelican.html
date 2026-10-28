@@ -162,7 +162,7 @@
 
     <!-- ===== pelican and bikes (800x600 coords, scaled into place) ===== -->
     <g id="rider" transform="translate(117,-40) scale(1.15)">
-      <!-- wheels: bike and e-bike share these, the moto swaps fat tyres -->
+      <!-- wheels: the bicycle uses these, the moto swaps fat tyres -->
       <g id="wheelsBike">
         <g transform="translate(250,420)"><g id="spinRear"><use href="#wheelArt"/></g></g>
         <g transform="translate(585,420)"><g id="spinFront"><use href="#wheelArt"/></g></g>
@@ -207,39 +207,6 @@
 
       </g><!-- /#bike -->
 
-      <!-- ===== e-bike: same frame, plus battery, hub motor, headlamp ===== -->
-      <g id="ebike" style="display:none">
-        <path d="M188 372 C 208 344 252 338 280 350" fill="none" stroke="#2f7a63" stroke-width="10" stroke-linecap="round"/>
-        <g fill="none" stroke="#2f7a63" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M405 416 L 545 352"/>
-          <path d="M405 416 L 320 330"/>
-          <path d="M320 330 L 551 307"/>
-          <path d="M545 352 L 556 301"/>
-          <path d="M405 416 L 250 420"/>
-          <path d="M320 330 L 250 420"/>
-        </g>
-        <path d="M548 340 C 566 370 578 396 586 418" fill="none" stroke="#1f5c4a" stroke-width="12" stroke-linecap="round"/>
-        <!-- battery slung along the down tube -->
-        <path d="M422 400 L 522 368" stroke="#3b4950" stroke-width="25" stroke-linecap="round"/>
-        <path d="M422 400 L 522 368" stroke="#55656d" stroke-width="17" stroke-linecap="round"/>
-        <path d="M442 392 L 502 373" stroke="#7ee0a8" stroke-width="3" stroke-linecap="round" opacity=".9"/>
-        <!-- hub motor -->
-        <circle cx="250" cy="420" r="30" fill="none" stroke="#4b5a62" stroke-width="9"/>
-        <circle cx="250" cy="420" r="30" fill="none" stroke="#9fb0b8" stroke-width="2.5" stroke-dasharray="5 8"/>
-        <circle cx="250" cy="420" r="11" fill="#b9c4cb" stroke="#5c6b72" stroke-width="3"/>
-        <circle cx="405" cy="416" r="22" fill="#dfe7ea" stroke="#5c6b72" stroke-width="4"/>
-        <circle cx="405" cy="416" r="6" fill="#5c6b72"/>
-        <path id="chainEbike" class="chain" fill="none" stroke="#55636a" stroke-width="3.6"
-              stroke-dasharray="5 4" stroke-linecap="round"/>
-        <path d="M270 330 C 278 316 302 309 328 309 C 344 309 352 316 344 322 C 330 331 298 338 278 336 C 268 335 266 334 270 330 Z" fill="#3a2f2a"/>
-        <g fill="none" stroke="#2f7a63" stroke-width="10" stroke-linecap="round">
-          <path d="M556 301 L 566 281"/>
-          <path d="M566 281 C 556 268 536 264 516 268"/>
-        </g>
-        <circle cx="561" cy="286" r="11" fill="#fff3c4" stroke="#b98f22" stroke-width="3"/>
-        <path d="M536 268 C 526 263 514 262 508 266 C 503 270 506 278 513 280 C 522 283 533 282 538 277 Z" fill="#3a2f2a"/>
-      </g>
-
       <!-- ===== moto: tank, engine, exhaust, headlamp ===== -->
       <g id="moto" style="display:none">
         <path d="M153 364 A 112 112 0 0 1 306 323" fill="none" stroke="#2f3438" stroke-width="12" stroke-linecap="round"/>
@@ -282,7 +249,7 @@
         <rect x="364" y="441" width="30" height="8" rx="3.5" fill="#2c363b"/>
       </g>
 
-      <!-- crank and pedals: bike and e-bike only, hidden on the moto -->
+      <!-- crank and pedals: bicycle only, hidden on the moto -->
       <g id="crankG">
         <g stroke="#4a585f" stroke-width="7" stroke-linecap="round">
           <path d="M405 416 L 430 448"/>
@@ -563,6 +530,8 @@
     footT: 0, parkT: 0   // 0 = foot on the pedal, 1 = propped on the sand
   };
   const SPEED_MAX = 620, WHEEL_R = 95, SCALE = 1.15, CRANK_R = 40, CRANK_PHASE = 52 * Math.PI / 180;
+  // past BURST_R the log curve is flat; a moto keeps pulling, this is how hard
+  const BURST_R = 3000, BURST_ADD = 320;
   // gear ratio is the radius ratio: one crank turn, rear turns R/r times
   const CHAINRING = { x: 405, y: 416, r: 22 }, SPROCKET = { x: 250, y: 420, r: 11 };
   const GEAR = SPROCKET.r / CHAINRING.r;
@@ -670,25 +639,24 @@
   const spinRear = $('spinRear'), spinFront = $('spinFront'), crankG = $('crankG');
   const pedalA = $('pedalA'), pedalB = $('pedalB');
   const spinRearM = $('spinRearM'), spinFrontM = $('spinFrontM');
-  const bikeG = $('bike'), ebikeG = $('ebike'), motoG = $('moto');
+  const bikeG = $('bike'), motoG = $('moto');
   const wheelsBike = $('wheelsBike'), wheelsMoto = $('wheelsMoto');
-  const chainBike = $('chainBike'), chainEbike = $('chainEbike');
+  const chainBike = $('chainBike');
   chainBike.setAttribute('d', chainD(CHAINRING, SPROCKET));
-  chainEbike.setAttribute('d', chainD(CHAINRING, SPROCKET));
 
   // ---------- vehicles: faster means a better ride ----------
   // all three share contact points, so the pelican's pose never changes
   const PEG_NEAR = [418, 452], PEG_FAR = [380, 446];
-  const V_EB = 300, V_MOTO = 470, V_HYST = 26;   // speed gates + hysteresis
+  const V_MOTO = 470, V_HYST = 26;   // speed gate + hysteresis
   let vehicle = 'bike';
 
   // Up-shifts look at the speed we are heading for, down-shifts at the speed we
-  // still have: a burst goes straight to the moto instead of flashing the
-  // e-bike for the half second it takes to pass through its band.
-  const STAGES = ['bike', 'ebike', 'moto'], GATES = [V_EB, V_MOTO];
+  // still have: the moto arrives on the way up and only goes once the ride has
+  // really slowed, so a wobble at the gate does not flicker between the two.
+  const STAGES = ['bike', 'moto'], GATES = [V_MOTO];
   function stageOf(s) {
     let i = 0;
-    while (i < 2 && s > GATES[i]) i++;
+    while (i < GATES.length && s > GATES[i]) i++;
     return i;
   }
   function pickVehicle(v, cur) {
@@ -703,8 +671,7 @@
     if (next === vehicle) return vehicle;
     vehicle = next;
     const isMoto = next === 'moto';
-    bikeG.style.display = next === 'bike' ? '' : 'none';
-    ebikeG.style.display = next === 'ebike' ? '' : 'none';
+    bikeG.style.display = isMoto ? 'none' : '';
     motoG.style.display = isMoto ? '' : 'none';
     wheelsBike.style.display = isMoto ? 'none' : '';
     wheelsMoto.style.display = isMoto ? '' : 'none';
@@ -754,8 +721,11 @@
     S.t += dt;
 
     // speed: log mapping, so hundreds and thousands of tok/s both read right
-    const f = Math.min(1, Math.log1p(S.rate) / Math.log1p(3000));
-    const target = S.mode === 'working' ? 40 + f * (SPEED_MAX - 40) : 0;
+    const f = Math.min(1, Math.log1p(S.rate) / Math.log1p(BURST_R));
+    let target = S.mode === 'working' ? 40 + f * (SPEED_MAX - 40) : 0;
+    // The curve tops out at BURST_R, which is exactly where the moto shows up:
+    // without this the ride has the top speed of a bicycle from there on.
+    if (S.rate > BURST_R) target = SPEED_MAX + BURST_ADD * Math.log(S.rate / BURST_R) / Math.LN10;
     S.target = target;   // pickVehicle needs where the speed is heading
     // ease in fast (2.4); stopping is a coast: 0.34 decay, about 6s of roll
     const k = target > S.v ? 2.4 : (S.mode === 'working' ? 1.2 : 0.34);
@@ -798,7 +768,6 @@
       put(spinFrontM, 'transform', `rotate(${wDeg})`);
       const chainOff = S.chain.toFixed(1);
       put(chainBike, 'stroke-dashoffset', chainOff);
-      put(chainEbike, 'stroke-dashoffset', chainOff);
       if (!onMoto) {
         put(crankG, 'transform', `rotate(${cDeg.toFixed(2)} 405 416)`);
         // pedals orbit the crank but never flip: the foot stays flat

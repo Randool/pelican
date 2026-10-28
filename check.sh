@@ -8,8 +8,9 @@
 #   6. time of day: day and night really swap the light
 #   7. each scrolling strip is one build plus an exact copy, so the seam is even
 #   8. parked: the near foot props on the sand, riding: both feet on the pedals
-#   9. a burst climbs straight to the moto, no e-bike frame on the way up
+#   9. two rides only: a bicycle until the moto arrives, then one clean swap
 #  10. the headlamp beam lands on the sand ahead, and only at night
+#  11. ten times the tokens really is a faster ride, not just a different bike
 # Any of these failing means an edit broke something. Usage: ./check.sh
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -72,7 +73,7 @@ def grab(path):
         return float(re.search(rf'id="{i}"[^>]*{attr}="([-\d.]+)', dom).group(1))
     crank = float(re.search(r'id="crankG" transform="rotate\(([-\d.]+)', dom).group(1))
     wheel = float(re.search(r'id="spinRear" transform="rotate\(([-\d.]+)', dom).group(1))
-    chain = num('chainEbike', 'stroke-dashoffset')
+    chain = num('chainBike', 'stroke-dashoffset')
     d = re.search(r'id="chainBike"[^>]* d="([^"]+)"', dom).group(1)
     return crank, wheel, chain, d
 a, b = grab(sys.argv[1]), grab(sys.argv[2])
@@ -101,7 +102,7 @@ def grab(path):
     def deg(i):
         t = re.search(rf'id="{i}" transform="rotate\(([-\d.]+)', dom).group(1)
         return float(t)
-    chain = float(re.search(r'id="chainEbike"[^>]*stroke-dashoffset="([-\d.]+)', dom).group(1))
+    chain = float(re.search(r'id="chainBike"[^>]*stroke-dashoffset="([-\d.]+)', dom).group(1))
     return deg('crankG'), deg('spinRear'), chain
 early, late = grab(sys.argv[1]), grab(sys.argv[2])
 assert abs(early[0] - late[0]) < 0.05, f'滑行时曲柄还在动：{early[0]:.1f} -> {late[0]:.1f}（松脚后应该停住）'
@@ -192,7 +193,7 @@ assert abs(rx - ax) < 1 and abs(ry - (ay - 9)) < 1, \
 assert rshadow < .01, f'骑起来还留着落地阴影：opacity={rshadow}'
 PY
 
-echo "· 换车：一脚油门直接上摩托，中间不闪电车"
+echo "· 换车：只有自行车和摩托，换车一步到位"
 burst() {
   "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
     --user-data-dir="$TMP/bu$1" --virtual-time-budget=2000 --dump-dom \
@@ -202,18 +203,18 @@ burst 0.5
 burst 0.9
 python3 - "$TMP/bu0.5.html" "$TMP/bu0.9.html" <<'PY'
 import re, sys
-def shown(path):
-    dom = open(path, encoding='utf-8').read()
+def shown(raw):
     out = {}
-    for vid in ('bike', 'ebike', 'moto'):
-        m = re.search(rf'id="{vid}" style="([^"]*)"', dom)
+    for vid in ('bike', 'moto'):
+        m = re.search(rf'id="{vid}" style="([^"]*)"', raw)
         # no style attribute at all means visible: display:'' drops it
         out[vid] = m is None or 'display:none' not in m.group(1).replace(' ', '')
     return out
-mid, top = shown(sys.argv[1]), shown(sys.argv[2])
-assert mid['ebike'] is False, '速度经过电车档时闪了一下电车，应该直接上摩托'
-assert mid['bike'] is True, '还没到摩托的速度，自行车却已经换掉了'
-assert top['moto'] is True and top['ebike'] is False, f'高速下不是摩托：{top}'
+raw_mid, raw_top = [open(p, encoding='utf-8').read() for p in sys.argv[1:]]
+mid, top = shown(raw_mid), shown(raw_top)
+assert 'id="ebike"' not in raw_mid, '车库里还有电动车，应该只剩自行车和摩托'
+assert mid['bike'] is True and mid['moto'] is False, f'半秒就换车了，太快：{mid}'
+assert top['moto'] is True and top['bike'] is False, f'高速下不是摩托：{top}'
 PY
 
 echo "· 车灯：夜里照在前进方向的沙面上"
@@ -237,6 +238,25 @@ for gx, gy in (a, b):
     assert gx > apex[0] + 80, f'光锥没朝前（右）：灯头 x={apex[0]}，落点 x={gx}'
 _, _, lx, ly = night
 assert lx > 900 and ly >= 520, f'光斑位置不对，应该在车前的地上：({lx}, {ly})'
+PY
+
+echo "· 摩托：token 再多一档，它是真的更快"
+moto() {
+  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
+    --user-data-dir="$TMP/mo$1" --virtual-time-budget=2000 --dump-dom \
+    "file://$PWD/app/pelican.html#rate=$1&t=4" > "$TMP/mo$1.html" 2>/dev/null
+}
+moto 3000
+moto 33000
+python3 - "$TMP/mo3000.html" "$TMP/mo33000.html" <<'PY'
+import re, sys
+def wheel(path):
+    dom = open(path, encoding='utf-8').read()
+    m = re.search(r'id="spinRearM"[^>]*transform="rotate\(([-\d.]+)', dom)
+    assert m, '车轮没有转起来，读不到旋转角度'
+    return float(m.group(1))
+slow, fast = wheel(sys.argv[1]), wheel(sys.argv[2])
+assert fast > slow * 1.3, f'token 翻十倍车轮没快多少：{slow:.0f}° → {fast:.0f}°'
 PY
 
 echo "  ✓ 全过"

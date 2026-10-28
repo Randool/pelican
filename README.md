@@ -24,7 +24,7 @@ Drag anywhere in the window to move it. The bicycle in the menu bar hides and sh
 
 ## It changes vehicles
 
-Pedal slowly and it is a bicycle. Speed up and it swaps to an e-bike, then a motorcycle. A sudden burst skips the middle: it goes straight from bicycle to motorcycle instead of flashing the e-bike for half a second on the way. Wind down and it works back through the same three.
+Pedal slowly and it is a bicycle. Push the rate up and it becomes a motorcycle, and back again when the work slows; there is nothing in between, so you never see a vehicle flash by on the way. Once it is on the motorcycle the speed keeps climbing with the rate instead of topping out there, so a big burst reads as faster riding, not just a different bike.
 
 ## When it stops
 
@@ -54,7 +54,7 @@ Want it to watch other folders too? Put one path per line in `app/agents.txt`. T
 ./check.sh
 ```
 
-There is no test framework here, so this is a handful of checks that can actually fail: the page's JavaScript parses, the copy bundled into the app matches the source byte for byte, one headless frame proves the scene draws, the drivetrain turns the rear wheel twice per crank revolution, coasting freezes the crank while the wheels keep rolling, and the night palette really is a different one, every scrolling strip is one drawing plus an exact copy, which is what stops the sand from jumping at the seam, a parked pelican really does put a foot on the sand while a pedalling one keeps both feet on the pedals, a burst of tokens reaches the motorcycle without flashing the e-bike on the way, and the headlamp lights the sand in front rather than behind.
+There is no test framework here, so this is a handful of checks that can actually fail: the page's JavaScript parses, the copy bundled into the app matches the source byte for byte, one headless frame proves the scene draws, the drivetrain turns the rear wheel twice per crank revolution, coasting freezes the crank while the wheels keep rolling, and the night palette really is a different one, every scrolling strip is one drawing plus an exact copy, which is what stops the sand from jumping at the seam, a parked pelican really does put a foot on the sand while a pedalling one keeps both feet on the pedals, a burst of tokens goes from bicycle to motorcycle in one clean swap with no third ride in between, the headlamp lights the sand in front rather than behind, and ten times the tokens really is a faster ride rather than just a different bike.
 
 ## Start it at login
 
