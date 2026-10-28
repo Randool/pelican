@@ -9,9 +9,11 @@ BIN="$APP/Contents/MacOS/PelicanFloat"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
+# One module: every file under Sources is compiled together, main.swift is
+# the only one with top-level code.
 swiftc -O -swift-version 5 \
   -framework Cocoa -framework WebKit -lsqlite3 \
-  PelicanFloat.swift -o "$BIN"
+  Sources/*.swift -o "$BIN"
 
 cp Info.plist "$APP/Contents/Info.plist"
 cp pelican.html "$APP/Contents/Resources/pelican.html"

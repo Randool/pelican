@@ -11,6 +11,7 @@
 #   9. two rides only: a bicycle until the moto arrives, then one clean swap
 #  10. the headlamp beam lands on the sand ahead, and only at night
 #  11. ten times the tokens really is a faster ride, not just a different bike
+#  12. the window's aspect constant agrees with the page's viewBox
 # Any of these failing means an edit broke something. Usage: ./check.sh
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -18,6 +19,17 @@ cd "$(dirname "$0")"
 CH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
+# The page owns the aspect ratio, so read the window size from its viewBox:
+# with preserveAspectRatio="slice" a mismatch crops the scene and every DOM
+# assertion still passes.
+WIN=$(python3 - <<'PY'
+import re
+html = open('app/pelican.html', encoding='utf-8').read()
+w, h = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', html).groups()
+print(f'{float(w):.0f},{float(h):.0f}')
+PY
+)
 
 echo "· JS 语法"
 python3 - "$TMP/app.js" <<'PY'
@@ -34,7 +46,7 @@ echo "· 打包副本与源文件一致"
 cmp app/pelican.html app/PelicanFloat.app/Contents/Resources/pelican.html
 
 echo "· 无头跑一帧，检查 JS 真的改到了 DOM"
-"$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
+"$CH" --headless=new --disable-gpu --hide-scrollbars --window-size="$WIN" \
   --user-data-dir="$TMP/cp" --virtual-time-budget=2000 --dump-dom \
   "file://$PWD/app/pelican.html#rate=1500&t=3" > "$TMP/dom.html" 2>/dev/null
 
@@ -59,7 +71,7 @@ PY
 
 echo "· 传动：齿比和链条对得上"
 pedal() {
-  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
+  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size="$WIN" \
     --user-data-dir="$TMP/cp$1" --virtual-time-budget=2500 --dump-dom \
     "file://$PWD/app/pelican.html#rate=150&t=$1" > "$TMP/pedal$1.html" 2>/dev/null
 }
@@ -89,7 +101,7 @@ PY
 
 echo "· 收工滑行：脚停住、轮子还在转"
 coast() {
-  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
+  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size="$WIN" \
     --user-data-dir="$TMP/cp$1" --virtual-time-budget=2000 --dump-dom \
     "file://$PWD/app/pelican.html#rate=150&t=3&off=$1" > "$TMP/coast$1.html" 2>/dev/null
 }
@@ -113,7 +125,7 @@ PY
 
 echo "· 时段：白天和夜里换的是光"
 phase() {
-  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
+  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size="$WIN" \
     --user-data-dir="$TMP/ph$1" --virtual-time-budget=1500 --dump-dom \
     "file://$PWD/app/pelican.html#t=1&time=$1" > "$TMP/ph$1.html" 2>/dev/null
 }
@@ -168,7 +180,7 @@ PY
 
 echo "· 停下来撑一脚"
 foot() {
-  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
+  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size="$WIN" \
     --user-data-dir="$TMP/ft$1" --virtual-time-budget=2500 --dump-dom \
     "file://$PWD/app/pelican.html#$2" > "$TMP/ft$1.html" 2>/dev/null
 }
@@ -195,7 +207,7 @@ PY
 
 echo "· 换车：只有自行车和摩托，换车一步到位"
 burst() {
-  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
+  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size="$WIN" \
     --user-data-dir="$TMP/bu$1" --virtual-time-budget=2000 --dump-dom \
     "file://$PWD/app/pelican.html#rate=1500&t=$1" > "$TMP/bu$1.html" 2>/dev/null
 }
@@ -242,7 +254,7 @@ PY
 
 echo "· 摩托：token 再多一档，它是真的更快"
 moto() {
-  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size=1200,700 \
+  "$CH" --headless=new --disable-gpu --hide-scrollbars --window-size="$WIN" \
     --user-data-dir="$TMP/mo$1" --virtual-time-budget=2000 --dump-dom \
     "file://$PWD/app/pelican.html#rate=$1&t=4" > "$TMP/mo$1.html" 2>/dev/null
 }
@@ -257,6 +269,19 @@ def wheel(path):
     return float(m.group(1))
 slow, fast = wheel(sys.argv[1]), wheel(sys.argv[2])
 assert fast > slow * 1.3, f'token 翻十倍车轮没快多少：{slow:.0f}° → {fast:.0f}°'
+PY
+
+echo "· 窗口比例和页面 viewBox 对得上"
+python3 - <<'PY'
+import re
+html = open('app/pelican.html', encoding='utf-8').read()
+swift = open('app/Sources/Scene.swift', encoding='utf-8').read()
+vw, vh = map(float, re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', html).groups())
+m = re.search(r'aspect: CGFloat = ([\d.]+) / ([\d.]+)', swift)
+assert m, 'Scene.aspect 换了写法，这条检查要跟着改，别让它空转'
+aw, ah = map(float, m.groups())
+assert abs(vw / vh - aw / ah) < 1e-6, \
+    f'页面 viewBox {vw:.0f}x{vh:.0f} 和窗口 {aw:.0f}/{ah:.0f} 比例不一致：画面会被裁'
 PY
 
 echo "  ✓ 全过"

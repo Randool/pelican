@@ -5,15 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>海边骑车的鹈鹕</title>
 <style>
-  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  html, body {
+    margin: 0; height: 100%; background: transparent; overflow: hidden;
+    -webkit-user-select: none; user-select: none; cursor: default;
+  }
   /* rounded card, inner stroke; the outer shadow is the window's job */
   #app {
     position: fixed; inset: 0; border-radius: 18px; overflow: hidden;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16);
   }
   svg#scene { width: 100%; height: 100%; display: block; }
-
-  body { -webkit-user-select: none; user-select: none; cursor: default; }
 
   /* resize hint, bottom right, shows on hover */
   #grip {
@@ -361,7 +362,8 @@
 <script>
 (() => {
   'use strict';
-  const svg = document.getElementById('scene');
+
+  // ---------- DOM helpers ----------
   const NS = 'http://www.w3.org/2000/svg';
   const $ = id => document.getElementById(id);
   const el = (tag, attrs = {}, parent) => {
@@ -371,157 +373,186 @@
     return n;
   };
 
+  // Only write attributes that changed: each write re-rasterises the area.
+  // Keyed by node: gulls and the boat have no id, so ids would collide.
+  const _prev = new WeakMap();
+  function put(node, attr, val) {
+    let seen = _prev.get(node);
+    if (!seen) _prev.set(node, seen = new Map());
+    if (seen.get(attr) === val) return;
+    seen.set(attr, val);
+    node.setAttribute(attr, val);
+  }
+
   // ---------- fixed seed: the sea looks the same after a reload ----------
   let seed = 20261027;
   const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
   const pick = a => a[(rnd() * a.length) | 0];
 
-  // ---------- scrolling bands: each draws 1200, plus one copy ----------
+  // ============================================================
+  // 1. the scenery: built once, then only moved
+  // ============================================================
   const TW = 1200;   // viewport width, one loop period
-  const bands = [];                    // { node, factor }
-  // Build once, then copy: two different random builds make the strip jump at the seam.
-  const band = (id, factor, build) => {
+  const bands = [];   // { node, factor }: strips that scroll at their own speed
+
+  // Build once, then copy: two different random builds make the strip jump
+  // at the seam.
+  function band(id, factor, build) {
     const node = $(id);
     // own layer: scrolling should move pixels, not repaint a 1000-element SVG
     node.style.willChange = 'transform';
-    // own layer: scrolling should move pixels, not repaint a 1000-element SVG
     const first = el('g', {}, node);
     build(first);
     const copy = first.cloneNode(true);
     copy.setAttribute('transform', `translate(${TW} 0)`);
     node.appendChild(copy);
     bands.push({ node, factor });
-  };
-
-  // clouds
-  band('clouds', 0.045, g => {
-    for (let i = 0; i < 5; i++) {
-      const x = rnd() * TW, y = 42 + rnd() * 140, s = .55 + rnd() * .7, o = .5 + rnd() * .4;
-      const c = el('g', { transform: `translate(${x} ${y}) scale(${s})`, opacity: o }, g);
-      el('ellipse', { cx: 0, cy: 0, rx: 62, ry: 20, fill: '#fff' }, c);
-      el('ellipse', { cx: -28, cy: -6, rx: 34, ry: 24, fill: '#fff' }, c);
-      el('ellipse', { cx: 22, cy: -10, rx: 40, ry: 28, fill: '#fff' }, c);
-      el('ellipse', { cx: 6, cy: 8, rx: 46, ry: 14, fill: '#f2fbff', opacity: .8 }, c);
-    }
-  });
-
-  // sea ripples
-  band('waves', 0.16, g => {
-    for (let i = 0; i < 46; i++) {
-      const y = 326 + rnd() * 112;
-      const depth = (y - 320) / 130;   // closer water reads stronger
-      el('line', {
-        x1: rnd() * TW, y1: y, x2: 0, y2: 0, stroke: '#eaf9f9',
-        'stroke-width': 2 + depth * 2.4, 'stroke-linecap': 'round',
-        opacity: (.12 + depth * .3).toFixed(3),
-        transform: `translate(0 0)`
-      }, g).setAttribute('x2', (+g.lastChild.getAttribute('x1') + 16 + rnd() * 54).toFixed(1));
-      g.lastChild.setAttribute('y2', y);
-    }
-  });
-
-  // sun glitter on the water
-  band('glitter', 0.1, g => {
-    for (let i = 0; i < 26; i++) {
-      const y = 326 + rnd() * 112, x = 846 + rnd() * 170;
-      el('line', {
-        x1: x.toFixed(1), y1: y.toFixed(1), x2: (x + 8 + rnd() * 18).toFixed(1), y2: y.toFixed(1),
-        stroke: '#fff6cf', 'stroke-width': 2 + rnd() * 1.6, 'stroke-linecap': 'round',
-        opacity: (.25 + rnd() * .5).toFixed(2)
-      }, g);
-    }
-  });
-
-  // distant island and palms, barely moves
-  band('island', 0.035, g => {
-    const x = 120 + rnd() * 90, y = 320;
-    const isl = el('g', { transform: `translate(${x} ${y})`, opacity: .5 }, g);
-    el('path', { d: 'M0 0 C 30 -22 96 -26 150 0 Z', fill: '#2f7f8c' }, isl);
-    el('path', { d: 'M52 -14 C 54 -34 62 -46 70 -50', stroke: '#2f7f8c', 'stroke-width': 3, fill: 'none' }, isl);
-    el('path', { d: 'M70 -50 C 60 -56 52 -54 46 -50 M70 -50 C 78 -57 86 -56 90 -50 M70 -50 C 71 -60 66 -66 60 -68', stroke: '#2f7f8c', 'stroke-width': 3, fill: 'none' }, isl);
-    el('path', { d: 'M96 -10 C 98 -24 104 -32 110 -34', stroke: '#2f7f8c', 'stroke-width': 2.5, fill: 'none' }, isl);
-    el('path', { d: 'M110 -34 C 102 -38 96 -36 92 -33 M110 -34 C 117 -39 123 -38 126 -33', stroke: '#2f7f8c', 'stroke-width': 2.5, fill: 'none' }, isl);
-  });
-
-  // foam, pushed in and out along the shore
-  band('foam', 0.5, g => {
-    const scallop = (y, amp, step, op, sw, col) => {
-      let d = `M-40 ${y}`;
-      for (let x = -40; x < TW + 40; x += step) {
-        d += ` q ${step / 2} ${-amp} ${step} 0`;
-      }
-      el('path', { d, fill: 'none', stroke: col, 'stroke-width': sw, 'stroke-linecap': 'round', opacity: op }, g);
-    };
-    scallop(454, 5, 62, .55, 4, '#ffffff');
-    scallop(462, 4, 46, .35, 3, '#ffffff');
-    scallop(469, 3, 74, .22, 3, '#eafaff');
-  });
-
-  // shells, starfish, pebbles on the sand
-  band('sandDecor', 0.95, g => {
-    for (let i = 0; i < 26; i++) {
-      const x = rnd() * TW, y = 500 + rnd() * 180, s = .7 + rnd() * .9;
-      const kind = rnd();
-      const o = .55 + rnd() * .35;
-      if (kind < .3) {   // starfish
-        const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)}) rotate(${(rnd() * 60 - 30).toFixed(0)})`, opacity: o }, g);
-        el('path', { d: 'M0 -11 L3 -3 L11 -3 L5 2 L7 10 L0 5 L-7 10 L-5 2 L-11 -3 L-3 -3 Z', fill: '#e8886a' }, t);
-      } else if (kind < .62) {   // shell
-        const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)}) rotate(${(rnd() * 40 - 20).toFixed(0)})`, opacity: o }, g);
-        el('path', { d: 'M-9 4 C -9 -6 9 -6 9 4 C 5 8 -5 8 -9 4 Z', fill: '#fdf3e2', stroke: '#d8bf9a', 'stroke-width': 1.2 }, t);
-        el('path', { d: 'M-4 4 L -2 -2 M0 5 L 0 -3 M4 4 L 2 -2', stroke: '#d8bf9a', 'stroke-width': 1.1, fill: 'none' }, t);
-      } else {   // pebble
-        el('ellipse', { cx: x.toFixed(1), cy: y.toFixed(1), rx: (4 + rnd() * 5).toFixed(1), ry: (2.5 + rnd() * 3).toFixed(1), fill: pick(['#cbb18a', '#d6bd97', '#bfa47c']), opacity: .8 }, g);
-      }
-    }
-  });
-
-  // foreground grass
-  band('grass', 1.35, g => {
-    for (let i = 0; i < 8; i++) {
-      const x = rnd() * TW, y = 660 + rnd() * 40, s = .55 + rnd() * .45;
-      const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)})`, opacity: .85 }, g);
-      for (let b = 0; b < 5; b++) {
-        const lean = -18 + b * 9 + rnd() * 6;
-        el('path', {
-          d: `M0 0 C ${lean * .4} -14 ${lean * .8} -28 ${lean} -42`,
-          stroke: pick(['#8fae52', '#a3bd63', '#7d9c46']), 'stroke-width': 3.2, 'stroke-linecap': 'round', fill: 'none'
-        }, t);
-      }
-    }
-  });
-
-  // ---------- a few gulls in the air ----------
-  const gulls = [];
-  for (let i = 0; i < 3; i++) {
-    const g = el('g', {}, $('gulls'));
-    el('path', {
-      d: 'M-14 0 C -8 -8 -3 -8 0 0 C 3 -8 8 -8 14 0',
-      fill: 'none', stroke: '#3c5b63', 'stroke-width': 3, 'stroke-linecap': 'round', opacity: .75
-    }, g);
-    gulls.push({ node: g, x: 200 + i * 330, y: 150 + i * 42, sp: 9 + i * 5, ph: i * 2.1, s: .8 + i * .25 });
   }
 
-  // ---------- boat ----------
-  const boat = $('boat');
-  const boatG = el('g', { transform: 'translate(1035 382)' }, boat);
-  el('path', { d: 'M-26 0 L26 0 L18 12 L-18 12 Z', fill: '#3b4a52' }, boatG);
-  el('path', { d: 'M0 -34 L0 -4 L22 -4 Z', fill: '#fdfaf1' }, boatG);
-  el('path', { d: 'M-2 -30 L-2 -4 L-20 -4 Z', fill: '#e8e0cd' }, boatG);
+  function buildBands() {
+    // clouds
+    band('clouds', 0.045, g => {
+      for (let i = 0; i < 5; i++) {
+        const x = rnd() * TW, y = 42 + rnd() * 140, s = .55 + rnd() * .7, o = .5 + rnd() * .4;
+        const c = el('g', { transform: `translate(${x} ${y}) scale(${s})`, opacity: o }, g);
+        el('ellipse', { cx: 0, cy: 0, rx: 62, ry: 20, fill: '#fff' }, c);
+        el('ellipse', { cx: -28, cy: -6, rx: 34, ry: 24, fill: '#fff' }, c);
+        el('ellipse', { cx: 22, cy: -10, rx: 40, ry: 28, fill: '#fff' }, c);
+        el('ellipse', { cx: 6, cy: 8, rx: 46, ry: 14, fill: '#f2fbff', opacity: .8 }, c);
+      }
+    });
 
-  // ---------- stars: night only, twinkle handled by CSS ----------
+    // sea ripples
+    band('waves', 0.16, g => {
+      for (let i = 0; i < 46; i++) {
+        const y = 326 + rnd() * 112;
+        const depth = (y - 320) / 130;   // closer water reads stronger
+        const x = rnd() * TW, len = 16 + rnd() * 54;
+        el('line', {
+          x1: x, y1: y, x2: (x + len).toFixed(1), y2: y, stroke: '#eaf9f9',
+          'stroke-width': 2 + depth * 2.4, 'stroke-linecap': 'round',
+          opacity: (.12 + depth * .3).toFixed(3), transform: 'translate(0 0)'
+        }, g);
+      }
+    });
+
+    // sun glitter on the water
+    band('glitter', 0.1, g => {
+      for (let i = 0; i < 26; i++) {
+        const y = 326 + rnd() * 112, x = 846 + rnd() * 170;
+        el('line', {
+          x1: x.toFixed(1), y1: y.toFixed(1), x2: (x + 8 + rnd() * 18).toFixed(1), y2: y.toFixed(1),
+          stroke: '#fff6cf', 'stroke-width': 2 + rnd() * 1.6, 'stroke-linecap': 'round',
+          opacity: (.25 + rnd() * .5).toFixed(2)
+        }, g);
+      }
+    });
+
+    // distant island and palms, barely moves
+    band('island', 0.035, g => {
+      const x = 120 + rnd() * 90, y = 320;
+      const isl = el('g', { transform: `translate(${x} ${y})`, opacity: .5 }, g);
+      el('path', { d: 'M0 0 C 30 -22 96 -26 150 0 Z', fill: '#2f7f8c' }, isl);
+      el('path', { d: 'M52 -14 C 54 -34 62 -46 70 -50', stroke: '#2f7f8c', 'stroke-width': 3, fill: 'none' }, isl);
+      el('path', { d: 'M70 -50 C 60 -56 52 -54 46 -50 M70 -50 C 78 -57 86 -56 90 -50 M70 -50 C 71 -60 66 -66 60 -68', stroke: '#2f7f8c', 'stroke-width': 3, fill: 'none' }, isl);
+      el('path', { d: 'M96 -10 C 98 -24 104 -32 110 -34', stroke: '#2f7f8c', 'stroke-width': 2.5, fill: 'none' }, isl);
+      el('path', { d: 'M110 -34 C 102 -38 96 -36 92 -33 M110 -34 C 117 -39 123 -38 126 -33', stroke: '#2f7f8c', 'stroke-width': 2.5, fill: 'none' }, isl);
+    });
+
+    // foam, pushed in and out along the shore
+    band('foam', 0.5, g => {
+      const scallop = (y, amp, step, op, sw, col) => {
+        let d = `M-40 ${y}`;
+        for (let x = -40; x < TW + 40; x += step) {
+          d += ` q ${step / 2} ${-amp} ${step} 0`;
+        }
+        el('path', { d, fill: 'none', stroke: col, 'stroke-width': sw, 'stroke-linecap': 'round', opacity: op }, g);
+      };
+      scallop(454, 5, 62, .55, 4, '#ffffff');
+      scallop(462, 4, 46, .35, 3, '#ffffff');
+      scallop(469, 3, 74, .22, 3, '#eafaff');
+    });
+
+    // shells, starfish, pebbles on the sand
+    band('sandDecor', 0.95, g => {
+      for (let i = 0; i < 26; i++) {
+        const x = rnd() * TW, y = 500 + rnd() * 180, s = .7 + rnd() * .9;
+        const kind = rnd();
+        const o = .55 + rnd() * .35;
+        if (kind < .3) {   // starfish
+          const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)}) rotate(${(rnd() * 60 - 30).toFixed(0)})`, opacity: o }, g);
+          el('path', { d: 'M0 -11 L3 -3 L11 -3 L5 2 L7 10 L0 5 L-7 10 L-5 2 L-11 -3 L-3 -3 Z', fill: '#e8886a' }, t);
+        } else if (kind < .62) {   // shell
+          const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)}) rotate(${(rnd() * 40 - 20).toFixed(0)})`, opacity: o }, g);
+          el('path', { d: 'M-9 4 C -9 -6 9 -6 9 4 C 5 8 -5 8 -9 4 Z', fill: '#fdf3e2', stroke: '#d8bf9a', 'stroke-width': 1.2 }, t);
+          el('path', { d: 'M-4 4 L -2 -2 M0 5 L 0 -3 M4 4 L 2 -2', stroke: '#d8bf9a', 'stroke-width': 1.1, fill: 'none' }, t);
+        } else {   // pebble
+          el('ellipse', { cx: x.toFixed(1), cy: y.toFixed(1), rx: (4 + rnd() * 5).toFixed(1), ry: (2.5 + rnd() * 3).toFixed(1), fill: pick(['#cbb18a', '#d6bd97', '#bfa47c']), opacity: .8 }, g);
+        }
+      }
+    });
+
+    // foreground grass
+    band('grass', 1.35, g => {
+      for (let i = 0; i < 8; i++) {
+        const x = rnd() * TW, y = 660 + rnd() * 40, s = .55 + rnd() * .45;
+        const t = el('g', { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)})`, opacity: .85 }, g);
+        for (let b = 0; b < 5; b++) {
+          const lean = -18 + b * 9 + rnd() * 6;
+          el('path', {
+            d: `M0 0 C ${lean * .4} -14 ${lean * .8} -28 ${lean} -42`,
+            stroke: pick(['#8fae52', '#a3bd63', '#7d9c46']), 'stroke-width': 3.2, 'stroke-linecap': 'round', fill: 'none'
+          }, t);
+        }
+      }
+    });
+  }
+
+  // three gulls in the air: { node, x, y, sp, ph, s }
+  const gulls = [];
+  function buildGulls() {
+    for (let i = 0; i < 3; i++) {
+      const g = el('g', {}, $('gulls'));
+      el('path', {
+        d: 'M-14 0 C -8 -8 -3 -8 0 0 C 3 -8 8 -8 14 0',
+        fill: 'none', stroke: '#3c5b63', 'stroke-width': 3, 'stroke-linecap': 'round', opacity: .75
+      }, g);
+      gulls.push({ node: g, x: 200 + i * 330, y: 150 + i * 42, sp: 9 + i * 5, ph: i * 2.1, s: .8 + i * .25 });
+    }
+  }
+
+  // one small boat, bobbing on the horizon
+  const boatG = el('g', { transform: 'translate(1035 382)' }, $('boat'));
+  function buildBoat() {
+    el('path', { d: 'M-26 0 L26 0 L18 12 L-18 12 Z', fill: '#3b4a52' }, boatG);
+    el('path', { d: 'M0 -34 L0 -4 L22 -4 Z', fill: '#fdfaf1' }, boatG);
+    el('path', { d: 'M-2 -30 L-2 -4 L-20 -4 Z', fill: '#e8e0cd' }, boatG);
+  }
+
+  // stars: night only, twinkle handled by CSS
   const starsG = $('stars');
   const stars = [];   // { node, twinkle }: the animation is only attached at night
-  for (let i = 0; i < 46; i++) {
-    const s = el('circle', {
-      cx: (rnd() * TW).toFixed(1), cy: (18 + rnd() * 250).toFixed(1),
-      r: (.8 + rnd() * 1.5).toFixed(2), fill: '#eaf2ff'
-    }, starsG);
-    stars.push({ node: s,
-      twinkle: `twinkle ${(2.6 + rnd() * 3).toFixed(1)}s ease-in-out ${(-rnd() * 4).toFixed(1)}s infinite alternate` });
+  function buildStars() {
+    for (let i = 0; i < 46; i++) {
+      const s = el('circle', {
+        cx: (rnd() * TW).toFixed(1), cy: (18 + rnd() * 250).toFixed(1),
+        r: (.8 + rnd() * 1.5).toFixed(2), fill: '#eaf2ff'
+      }, starsG);
+      stars.push({ node: s,
+        twinkle: `twinkle ${(2.6 + rnd() * 3).toFixed(1)}s ease-in-out ${(-rnd() * 4).toFixed(1)}s infinite alternate` });
+    }
   }
 
-  // ---------- state ----------
+  // order matters: it is the order the fixed seed is drawn in, so a reshuffle
+  // here redraws the whole beach
+  buildBands();
+  buildGulls();
+  buildBoat();
+  buildStars();
+
+  // ============================================================
+  // 2. state and geometry, all in the bike's own 800x600 coordinates
+  // ============================================================
   const S = {
     rate: 0, mode: 'idle',
     v: 0, target: 0,   // ground speed, scene px per second; target is where it heads
@@ -535,6 +566,10 @@
   // gear ratio is the radius ratio: one crank turn, rear turns R/r times
   const CHAINRING = { x: 405, y: 416, r: 22 }, SPROCKET = { x: 250, y: 420, r: 11 };
   const GEAR = SPROCKET.r / CHAINRING.r;
+  const CRANK = [CHAINRING.x, CHAINRING.y];   // crank axis, same as the ring
+  const HIP_NEAR = [332, 346], HIP_FAR = [314, 346];
+  // ankle spot for the propped foot: sole on the sand (wheel centre 420 + r 95)
+  const FOOT_GROUND = [352, 504];
 
   // chain path: two outer tangents plus an arc around each sprocket
   function chainD(A, B) {
@@ -547,15 +582,14 @@
     return `M ${at(A, nUp)} L ${at(B, nUp)} A ${B.r} ${B.r} 0 1 0 ${at(B, nDn)}` +
            ` L ${at(A, nDn)} A ${A.r} ${A.r} 0 1 0 ${at(A, nUp)} Z`;
   }
-  const HIP_NEAR = [332, 346], HIP_FAR = [314, 346];
-  // ankle spot for the propped foot: sole on the sand (wheel centre 420 + r 95)
-  const FOOT_GROUND = [352, 504];
 
   // debug params via hash: #rate=1500&t=3 fast-forwards and freezes
   const params = new URLSearchParams(location.hash.replace(/^#/, ''));
   const FPS_CAP = Number(params.get('fps')) || 0;   // force fps, 0 = adapt
 
-  // ---------- time of day: day / afternoon / night, from the clock ----------
+  // ============================================================
+  // 3. time of day: day / afternoon / night, from the clock
+  // ============================================================
   // swap the light, not the scenery: sky, sea, sand each get a set, and night
   // is a veil, so clouds, waves and shells never need per-element tinting.
   const PHASES = {
@@ -629,36 +663,36 @@
     setInterval(() => applyPhase(phaseForHour(new Date().getHours())), 60000);
   }
 
-  function setTokenRate(r) {
-    S.rate = Math.max(0, Number(r) || 0);
-    S.mode = S.rate > 0.5 ? 'working' : 'idle';
-    if (S.mode === 'idle') { S.blinkNext = Math.min(S.blinkNext, S.t + .4); }
-  }
-
-  // ---------- per frame ----------
-  const spinRear = $('spinRear'), spinFront = $('spinFront'), crankG = $('crankG');
-  const pedalA = $('pedalA'), pedalB = $('pedalB');
-  const spinRearM = $('spinRearM'), spinFrontM = $('spinFrontM');
-  const bikeG = $('bike'), motoG = $('moto');
-  const wheelsBike = $('wheelsBike'), wheelsMoto = $('wheelsMoto');
-  const chainBike = $('chainBike');
-  chainBike.setAttribute('d', chainD(CHAINRING, SPROCKET));
-
-  // ---------- vehicles: faster means a better ride ----------
-  // all three share contact points, so the pelican's pose never changes
+  // ============================================================
+  // 4. two rides: the bicycle, then the moto that picks up where it stops
+  // ============================================================
+  // they share contact points, so the pelican's pose never changes
   const PEG_NEAR = [418, 452], PEG_FAR = [380, 446];
   const V_MOTO = 470, V_HYST = 26;   // speed gate + hysteresis
+  const STAGES = ['bike', 'moto'], GATES = [V_MOTO];
   let vehicle = 'bike';
 
-  // Up-shifts look at the speed we are heading for, down-shifts at the speed we
-  // still have: the moto arrives on the way up and only goes once the ride has
-  // really slowed, so a wobble at the gate does not flicker between the two.
-  const STAGES = ['bike', 'moto'], GATES = [V_MOTO];
+  const bikeG = $('bike'), motoG = $('moto');
+  const wheelsBike = $('wheelsBike'), wheelsMoto = $('wheelsMoto');
+  const spinRear = $('spinRear'), spinFront = $('spinFront');
+  const spinRearM = $('spinRearM'), spinFrontM = $('spinFrontM');
+  const crankG = $('crankG'), pedalA = $('pedalA'), pedalB = $('pedalB');
+  const chainBike = $('chainBike');
+  const thighNear = $('thighNear'), thighFar = $('thighFar');
+  const footNear = $('footNear'), footFar = $('footFar'), footShadow = $('footShadow');
+  const bird = $('bird'), headG = $('headG'), eyeG = $('eyeG'), eyeHi = $('eyeHi'), tailG = $('tailG');
+  const dust = $('dust');
+  chainBike.setAttribute('d', chainD(CHAINRING, SPROCKET));
+
   function stageOf(s) {
     let i = 0;
     while (i < GATES.length && s > GATES[i]) i++;
     return i;
   }
+
+  // Up-shifts look at the speed we are heading for, down-shifts at the speed we
+  // still have: the moto arrives on the way up and only goes once the ride has
+  // really slowed, so a wobble at the gate does not flicker between the two.
   function pickVehicle(v, cur) {
     let i = STAGES.indexOf(cur);
     const want = stageOf(S.target);
@@ -681,16 +715,10 @@
     for (let i = 0; i < 8; i++) puff(410, 556, { ttl: .8 });   // dust on swap
     return vehicle;
   }
-  const thighNear = $('thighNear'), thighFar = $('thighFar');
-  const footNear = $('footNear'), footFar = $('footFar'), footShadow = $('footShadow');
-  const bird = $('bird'), headG = $('headG'), eyeG = $('eyeG'), eyeHi = $('eyeHi'), tailG = $('tailG');
-  const dust = $('dust');
 
-  let travelled = 0;
-
-  // Only write attributes that changed: each write re-rasterises the area.
-  // Keyed by node: gulls and the boat have no id, so ids would collide.
-  const _prev = new WeakMap();
+  // ============================================================
+  // 5. dust and smoke: one particle, three sources
+  // ============================================================
   // one dust/smoke particle: vehicle swap, rear wheel, exhaust all use it
   function puff(x, y, o = {}) {
     const op = o.op ?? .75;
@@ -708,24 +736,56 @@
     return p;
   }
 
-  function put(node, attr, val) {
-    let seen = _prev.get(node);
-    if (!seen) _prev.set(node, seen = new Map());
-    if (seen.get(attr) === val) return false;
-    seen.set(attr, val);
-    node.setAttribute(attr, val);
-    return true;
+  function spawnDust(dt, onMoto) {
+    // sand kicked up behind the rear wheel
+    if (S.v > 130 && Math.random() < dt * (S.v / 240) * 4) puff(404.5, 552);
+    // exhaust smoke on the moto
+    if (onMoto && S.v > 300 && Math.random() < dt * 9) {
+      puff(392, 478, { fill: '#c8ced2', op: .5, ttl: .9, r0: 4, grow: 9,
+                       vx: -(60 + Math.random() * 50), vy: -(6 + Math.random() * 20) });
+    }
   }
 
-  function update(dt) {
-    S.t += dt;
+  function advanceDust(dt) {
+    for (let i = dust.children.length - 1; i >= 0; i--) {
+      const p = dust.children[i];
+      p._life += dt;
+      if (p._life > p._ttl) { p.remove(); continue; }
+      p.setAttribute('cx', (+p.getAttribute('cx') + p._vx * dt).toFixed(1));
+      p.setAttribute('cy', (+p.getAttribute('cy') + p._vy * dt).toFixed(1));
+      p.setAttribute('r', (3 + p._life * p._grow).toFixed(1));
+      p.setAttribute('opacity', (p._op0 * (1 - p._life / p._ttl)).toFixed(3));
+    }
+  }
 
-    // speed: log mapping, so hundreds and thousands of tok/s both read right
-    const f = Math.min(1, Math.log1p(S.rate) / Math.log1p(BURST_R));
-    let target = S.mode === 'working' ? 40 + f * (SPEED_MAX - 40) : 0;
+  // ============================================================
+  // 6. the ride: tokens per second in, ground speed out
+  // ============================================================
+  let travelled = 0;   // scene px ridden so far; every strip is placed from it
+
+  function setTokenRate(r) {
+    S.rate = Math.max(0, Number(r) || 0);
+    S.mode = S.rate > 0.5 ? 'working' : 'idle';
+    if (S.mode === 'idle') { S.blinkNext = Math.min(S.blinkNext, S.t + .4); }
+  }
+
+  // log mapping, so hundreds and thousands of tok/s both read right
+  function speedTarget(rate) {
+    if (S.mode !== 'working') return 0;
+    const f = Math.min(1, Math.log1p(rate) / Math.log1p(BURST_R));
+    const base = 40 + f * (SPEED_MAX - 40);
     // The curve tops out at BURST_R, which is exactly where the moto shows up:
     // without this the ride has the top speed of a bicycle from there on.
-    if (S.rate > BURST_R) target = SPEED_MAX + BURST_ADD * Math.log(S.rate / BURST_R) / Math.LN10;
+    if (rate <= BURST_R) return base;
+    return SPEED_MAX + BURST_ADD * Math.log(rate / BURST_R) / Math.LN10;
+  }
+
+  // Speed, wheels, crank and chain: the drivetrain is rigid, so everything
+  // downstream of the token rate is derived, never set by hand.
+  function advanceDrive(dt) {
+    S.t += dt;
+
+    const target = speedTarget(S.rate);
     S.target = target;   // pickVehicle needs where the speed is heading
     // ease in fast (2.4); stopping is a coast: 0.34 decay, about 6s of roll
     const k = target > S.v ? 2.4 : (S.mode === 'working' ? 1.2 : 0.34);
@@ -750,14 +810,41 @@
     S.chain += (S.crank - crankWas) * CHAINRING.r;   // chain speed = omega * r
 
     travelled += S.v * dt;
+    return { pedaling, moving: S.v > 4 };
+  }
 
-    const moving = S.v > 4;
+  // Where each ankle goes this frame: the pedal ends, or the moto's pegs.
+  function pedalPoints(onMoto) {
+    if (onMoto) return [PEG_NEAR, PEG_FAR];
+    const c = Math.cos(S.crank + CRANK_PHASE), s = Math.sin(S.crank + CRANK_PHASE);
+    return [[CRANK[0] + CRANK_R * c, CRANK[1] + CRANK_R * s],
+            [CRANK[0] - CRANK_R * c, CRANK[1] - CRANK_R * s]];
+  }
+
+  // Parked long enough, the near foot props on the sand: a bird this top-heavy
+  // would fall over otherwise. Short pauses keep both feet on the pedals.
+  function footPlant(dt, moving, pedaling) {
+    S.parkT = (!moving && !pedaling) ? S.parkT + dt : 0;
+    S.footT += ((S.parkT > .7 ? 1 : 0) - S.footT) * Math.min(1, dt * 5);
+    return S.footT * S.footT * (3 - 2 * S.footT);   // smoothstep, no snap
+  }
+
+  // legs: hip follows the body, ankle rides the pedal, one quadratic each
+  function legCurve(H, A, bow) {
+    const dx = A[0] - H[0], dy = A[1] - H[1], d = Math.hypot(dx, dy) || 1;
+    const cx = (H[0] + A[0]) / 2 + (dy / d) * bow;
+    const cy = (H[1] + A[1]) / 2 - (dx / d) * bow;
+    return `M${H[0]} ${H[1].toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${A[0].toFixed(1)} ${A[1].toFixed(1)}`;
+  }
+
+  // ============================================================
+  // 7. one frame
+  // ============================================================
+  function update(dt) {
+    const { pedaling, moving } = advanceDrive(dt);
     const cDeg = S.crank * 180 / Math.PI;
     const onMoto = setVehicle(pickVehicle(S.v, vehicle)) === 'moto';
-    const p1 = onMoto ? PEG_NEAR
-      : [405 + CRANK_R * Math.cos(S.crank + CRANK_PHASE), 416 + CRANK_R * Math.sin(S.crank + CRANK_PHASE)];
-    const p2 = onMoto ? PEG_FAR
-      : [405 - CRANK_R * Math.cos(S.crank + CRANK_PHASE), 416 - CRANK_R * Math.sin(S.crank + CRANK_PHASE)];
+    const [p1, p2] = pedalPoints(onMoto);
 
     // Parked: wheels, crank, pedals, bands are static, positions already set.
     if (moving) {
@@ -766,21 +853,16 @@
       put(spinFront, 'transform', `rotate(${wDeg})`);
       put(spinRearM, 'transform', `rotate(${wDeg})`);
       put(spinFrontM, 'transform', `rotate(${wDeg})`);
-      const chainOff = S.chain.toFixed(1);
-      put(chainBike, 'stroke-dashoffset', chainOff);
+      put(chainBike, 'stroke-dashoffset', S.chain.toFixed(1));
       if (!onMoto) {
-        put(crankG, 'transform', `rotate(${cDeg.toFixed(2)} 405 416)`);
+        put(crankG, 'transform', `rotate(${cDeg.toFixed(2)} ${CRANK[0]} ${CRANK[1]})`);
         // pedals orbit the crank but never flip: the foot stays flat
         put(pedalA, 'transform', `translate(${p1[0].toFixed(2)} ${p1[1].toFixed(2)})`);
         put(pedalB, 'transform', `translate(${p2[0].toFixed(2)} ${p2[1].toFixed(2)})`);
       }
     }
 
-    // Parked long enough, the near foot props on the sand: a bird this top-heavy
-    // would fall over otherwise. Short pauses keep both feet on the pedals.
-    S.parkT = (!moving && !pedaling) ? S.parkT + dt : 0;
-    S.footT += ((S.parkT > .7 ? 1 : 0) - S.footT) * Math.min(1, dt * 5);
-    const plant = S.footT * S.footT * (3 - 2 * S.footT);   // smoothstep, no snap
+    const plant = footPlant(dt, moving, pedaling);
 
     // body: bobs with the stroke, sits while coasting, breathes at rest
     const bob = (pedaling ? Math.sin(S.crank * 2) * 2.2
@@ -789,19 +871,12 @@
     const lean = pedaling ? 1.6 + Math.sin(S.crank * 2) * .5 : (moving ? .8 : -1.8 - 2.4 * plant);
     put(bird, 'transform', `translate(0 ${bob.toFixed(2)}) rotate(${lean.toFixed(2)} 290 300)`);
 
-    // legs: hip follows the body, ankle rides the pedal, one quadratic each
     const hipN = [HIP_NEAR[0], HIP_NEAR[1] + bob], hipF = [HIP_FAR[0], HIP_FAR[1] + bob];
     const ankN = [p1[0] + (FOOT_GROUND[0] - p1[0]) * plant,
                   p1[1] - 9 + (FOOT_GROUND[1] - (p1[1] - 9)) * plant];
     const ankF = [p2[0], p2[1] - 9];
-    const curve = (H, A, bow) => {
-      const dx = A[0] - H[0], dy = A[1] - H[1], d = Math.hypot(dx, dy) || 1;
-      const cx = (H[0] + A[0]) / 2 + (dy / d) * bow;
-      const cy = (H[1] + A[1]) / 2 - (dx / d) * bow;
-      return `M${H[0]} ${H[1].toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${A[0].toFixed(1)} ${A[1].toFixed(1)}`;
-    };
-    put(thighNear, 'd', curve(hipN, ankN, 20 + 14 * plant));
-    put(thighFar, 'd', curve(hipF, ankF, 16));
+    put(thighNear, 'd', legCurve(hipN, ankN, 20 + 14 * plant));
+    put(thighFar, 'd', legCurve(hipF, ankF, 16));
 
     put(footNear, 'transform', `translate(${ankN[0].toFixed(1)} ${ankN[1].toFixed(1)}) scale(${(.82 + .1 * plant).toFixed(3)}) rotate(${(-7 * plant).toFixed(1)})`);
     put(footShadow, 'opacity', (plant * .18).toFixed(2));
@@ -837,7 +912,7 @@
       }
     }
 
-    // gulls, boat, dust
+    // gulls fly against the ride, the boat just bobs
     for (const g of gulls) {
       g.x -= g.sp * dt * (1 + S.v / 260);
       if (g.x < -80) g.x = 1280;
@@ -846,28 +921,15 @@
     }
     put(boatG, 'transform', `translate(1035 ${(382 + Math.sin(S.t * .9) * 2.5).toFixed(1)}) rotate(${(Math.sin(S.t * .9) * .8).toFixed(2)})`);
 
-    // sand kicked up behind the rear wheel
-    if (S.v > 130 && Math.random() < dt * (S.v / 240) * 4) puff(404.5, 552);
-    // exhaust smoke on the moto
-    if (onMoto && S.v > 300 && Math.random() < dt * 9) {
-      puff(392, 478, { fill: '#c8ced2', op: .5, ttl: .9, r0: 4, grow: 9,
-                       vx: -(60 + Math.random() * 50), vy: -(6 + Math.random() * 20) });
-    }
-    for (let i = dust.children.length - 1; i >= 0; i--) {
-      const p = dust.children[i];
-      p._life += dt;
-      if (p._life > p._ttl) { p.remove(); continue; }
-      p.setAttribute('cx', (+p.getAttribute('cx') + p._vx * dt).toFixed(1));
-      p.setAttribute('cy', (+p.getAttribute('cy') + p._vy * dt).toFixed(1));
-      p.setAttribute('r', (3 + p._life * p._grow).toFixed(1));
-      p.setAttribute('opacity', (p._op0 * (1 - p._life / p._ttl)).toFixed(3));
-    }
+    spawnDust(dt, onMoto);
+    advanceDust(dt);
   }
 
-  let last = performance.now();
-  let lastDraw = last;
+  // ============================================================
+  // 8. the loop: 30fps working, 15 idle, the cheap cut
+  // ============================================================
+  let lastDraw = performance.now();
   let frozen = false;
-  // frame rate by state: 30fps working, 15 idle, the cheap cut
   const FPS_BUSY = 30, FPS_IDLE = 15;
   // Skip by frame count, not by elapsed time: 60Hz frames land right on the 33.3ms
   // boundary, so a time threshold flips between 2 and 3 frames and judders.
@@ -894,7 +956,7 @@
     }
     skip = 0;
     const dt = Math.min(.1, (now - lastDraw) / 1000);
-    lastDraw = now; last = now;
+    lastDraw = now;
     if (!frozen) update(dt);
     drawTimes.push(now);
     requestAnimationFrame(frame);
@@ -907,7 +969,7 @@
 
   // ---------- app API: the shell pushes a token rate once a second ----------
   window.pelican = {
-    setTokenRate: setTokenRate,   // tokens per second; 0 = parked
+    setTokenRate,   // tokens per second; 0 = parked
     // the demo recorder reads speed from here
     getState: () => ({ mode: S.mode, rate: S.rate, speed: S.v, wheel: S.wheel, crank: S.crank, chain: S.chain,
                        foot: +S.footT.toFixed(2), ...frameStats() }),
